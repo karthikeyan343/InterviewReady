@@ -41,17 +41,20 @@ const ResumePage: React.FC = () => {
 
       const token = getToken();
 
-      const response = await fetch("/api/resume/me", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
-        },
-      });
+const response = await fetch(
+  `${import.meta.env.VITE_API_BASE_URL}/resume/me`,
+  {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
+    },
+  }
+);
 
       const data = await response.json();
 
@@ -109,17 +112,20 @@ const ResumePage: React.FC = () => {
 
       const token = getToken();
 
-      const response = await fetch("/api/resume/upload", {
-        method: "POST",
-        headers: {
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
-        },
-        body: formData,
-      });
+const response = await fetch(
+  `${import.meta.env.VITE_API_BASE_URL}/resume/upload`,
+  {
+    method: "POST",
+    headers: {
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
+    },
+    body: formData,
+  }
+);
 
       const data = await response.json();
 
@@ -146,16 +152,19 @@ const ResumePage: React.FC = () => {
 
       const token = getToken();
 
-      const response = await fetch("/api/resume/view", {
-        method: "GET",
-        headers: {
-          ...(token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {}),
-        },
-      });
+const response = await fetch(
+  `${import.meta.env.VITE_API_BASE_URL}/resume/view`,
+  {
+    method: "GET",
+    headers: {
+      ...(token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {}),
+    },
+  }
+);
 
       const data = await response.json();
 
