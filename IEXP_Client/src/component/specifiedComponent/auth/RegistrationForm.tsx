@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Box,
@@ -18,14 +18,12 @@ import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CircularProgress from "@mui/material/CircularProgress";
 
-import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
-
-import { useNavigate } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const RegistrationForm: React.FC = () => {
   const navigate = useNavigate();
-
-  const googleLoginRef = useRef<HTMLDivElement | null>(null);
+  const location = useLocation();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -83,6 +81,10 @@ const RegistrationForm: React.FC = () => {
     },
   };
 
+  // ---------------------------------------------------------
+  // NORMAL REGISTRATION
+  // ---------------------------------------------------------
+
   const handleRegister = async (
     event: React.FormEvent<HTMLFormElement>
   ) => {
@@ -94,7 +96,12 @@ const RegistrationForm: React.FC = () => {
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
 
-    if (!trimmedName || !trimmedEmail || !password || !confirmPassword) {
+    if (
+      !trimmedName ||
+      !trimmedEmail ||
+      !password ||
+      !confirmPassword
+    ) {
       setError("Please fill in all fields.");
       return;
     }
@@ -164,6 +171,10 @@ const RegistrationForm: React.FC = () => {
     }
   };
 
+  // ---------------------------------------------------------
+  // GOOGLE REGISTRATION
+  // ---------------------------------------------------------
+
   const handleGoogleRegister = async (credential: string) => {
     try {
       setError("");
@@ -218,68 +229,51 @@ const RegistrationForm: React.FC = () => {
     }
   };
 
-  const handleGoogleSuccess = (
-    credentialResponse: CredentialResponse
-  ) => {
-    if (!credentialResponse.credential) {
-      setError(
-        "Google sign-up failed. No credential received."
-      );
-      return;
-    }
-
-    handleGoogleRegister(credentialResponse.credential);
-  };
-
-  const handleGoogleError = () => {
-    setError("Google sign-up failed. Please try again.");
-  };
-
-  const handleGoogleButtonClick = () => {
-    const googleButton =
-      googleLoginRef.current?.querySelector(
-        'div[role="button"]'
-      ) as HTMLElement | null;
-
-    if (googleButton) {
-      googleButton.click();
-    }
-  };
-
   return (
     <Box
       component="form"
       onSubmit={handleRegister}
       sx={{
         width: "100%",
+
         maxWidth: {
           xs: "100%",
           sm: "390px",
           md: "400px",
           lg: "410px",
         },
+
         boxSizing: "border-box",
         backgroundColor: "white",
+
         borderRadius: {
           xs: "12px",
           sm: "13px",
         },
+
         px: {
           xs: "18px",
           sm: "22px",
           md: "28px",
           lg: "30px",
         },
+
         py: {
           xs: "18px",
           sm: "20px",
           md: "24px",
           lg: "26px",
         },
+
         fontFamily: '"Manrope", sans-serif',
+
         boxsizing: "border-box",
       }}
     >
+      {/* ---------------------------------------------------
+          TITLE
+      --------------------------------------------------- */}
+
       <Typography
         component="h1"
         sx={{
@@ -294,6 +288,7 @@ const RegistrationForm: React.FC = () => {
           fontWeight: 800,
           letterSpacing: "-0.7px",
           color: "#101b46",
+
           mb: {
             xs: "3px",
             sm: "4px",
@@ -302,6 +297,7 @@ const RegistrationForm: React.FC = () => {
       >
         Create your account
       </Typography>
+
       <Typography
         sx={{
           fontFamily: '"Manrope", sans-serif',
@@ -313,6 +309,7 @@ const RegistrationForm: React.FC = () => {
           lineHeight: 1.4,
           fontWeight: 500,
           color: "#7182a8",
+
           mb: {
             xs: "10px",
             sm: "11px",
@@ -322,6 +319,11 @@ const RegistrationForm: React.FC = () => {
       >
         Join InterviewReady and start your journey.
       </Typography>
+
+      {/* ---------------------------------------------------
+          ERROR
+      --------------------------------------------------- */}
+
       {error && (
         <Alert
           severity="error"
@@ -345,6 +347,11 @@ const RegistrationForm: React.FC = () => {
           {error}
         </Alert>
       )}
+
+      {/* ---------------------------------------------------
+          SUCCESS
+      --------------------------------------------------- */}
+
       {success && (
         <Alert
           severity="success"
@@ -366,6 +373,11 @@ const RegistrationForm: React.FC = () => {
           {success}
         </Alert>
       )}
+
+      {/* ---------------------------------------------------
+          FULL NAME
+      --------------------------------------------------- */}
+
       <Box
         sx={{
           mb: {
@@ -426,7 +438,10 @@ const RegistrationForm: React.FC = () => {
         />
       </Box>
 
-      {/* Email */}
+      {/* ---------------------------------------------------
+          EMAIL
+      --------------------------------------------------- */}
+
       <Box
         sx={{
           mb: {
@@ -486,6 +501,11 @@ const RegistrationForm: React.FC = () => {
           }}
         />
       </Box>
+
+      {/* ---------------------------------------------------
+          PASSWORD
+      --------------------------------------------------- */}
+
       <Box
         sx={{
           mb: {
@@ -596,6 +616,11 @@ const RegistrationForm: React.FC = () => {
           }}
         />
       </Box>
+
+      {/* ---------------------------------------------------
+          CONFIRM PASSWORD
+      --------------------------------------------------- */}
+
       <Box
         sx={{
           mb: {
@@ -704,20 +729,28 @@ const RegistrationForm: React.FC = () => {
           }}
         />
       </Box>
+
+      {/* ---------------------------------------------------
+          TERMS
+      --------------------------------------------------- */}
+
       <Box
         sx={{
           display: "flex",
           alignItems: "flex-start",
+
           mb: {
             xs: "9px",
             sm: "11px",
             md: "13px",
           },
+
           ml: {
             xs: "-2px",
             sm: "-3px",
             md: "-4px",
           },
+
           minWidth: 0,
         }}
       >
@@ -792,6 +825,11 @@ const RegistrationForm: React.FC = () => {
           </Typography>
         </Typography>
       </Box>
+
+      {/* ---------------------------------------------------
+          CREATE ACCOUNT
+      --------------------------------------------------- */}
+
       <Button
         fullWidth
         type="submit"
@@ -817,9 +855,11 @@ const RegistrationForm: React.FC = () => {
             sm: "40px",
             md: "42px",
           },
+
           borderRadius: "7px",
           backgroundColor: "#1769e8",
-          boxShadow: "0 5px 14px rgba(23, 105, 232, 0.16)",
+          boxShadow:
+            "0 5px 14px rgba(23, 105, 232, 0.16)",
 
           fontFamily: '"Manrope", sans-serif',
           fontSize: {
@@ -827,12 +867,14 @@ const RegistrationForm: React.FC = () => {
             sm: "13px",
             md: "14px",
           },
+
           fontWeight: 700,
           textTransform: "none",
 
           "&:hover": {
             backgroundColor: "#1260d8",
-            boxShadow: "0 6px 16px rgba(23, 105, 232, 0.22)",
+            boxShadow:
+              "0 6px 16px rgba(23, 105, 232, 0.22)",
           },
 
           "&.Mui-disabled": {
@@ -843,11 +885,17 @@ const RegistrationForm: React.FC = () => {
       >
         {loading ? "Creating Account..." : "Create Account"}
       </Button>
+
+      {/* ---------------------------------------------------
+          OR DIVIDER
+      --------------------------------------------------- */}
+
       <Box
         sx={{
           display: "flex",
           alignItems: "center",
           gap: "12px",
+
           my: {
             xs: "9px",
             sm: "11px",
@@ -886,105 +934,73 @@ const RegistrationForm: React.FC = () => {
           }}
         />
       </Box>
-      <Button
-        fullWidth
-        type="button"
-        variant="outlined"
-        disabled={loading}
-        onClick={handleGoogleButtonClick}
-        sx={{
-          height: {
-            xs: "37px",
-            sm: "38px",
-            md: "40px",
-          },
-          borderRadius: "7px",
-          borderColor: "#d5deeb",
-          backgroundColor: "#ffffff",
 
-          fontFamily: '"Manrope", sans-serif',
-          fontSize: {
-            xs: "11px",
-            sm: "12px",
-            md: "13px",
-          },
-          fontWeight: 600,
-          color: "#17244b",
-          textTransform: "none",
+      {/* ---------------------------------------------------
+          GOOGLE LOGIN
+          
+          IMPORTANT:
+          This is now the actual GoogleLogin component,
+          just like the working LoginForm.
+      --------------------------------------------------- */}
 
-          "&:hover": {
-            borderColor: "#b8c8dc",
-            backgroundColor: "#fafcff",
-          },
-        }}
-        startIcon={
-          <Box
-            component="svg"
-            viewBox="0 0 24 24"
-            sx={{
-              width: {
-                xs: "17px",
-                sm: "18px",
-                md: "19px",
-              },
-              height: {
-                xs: "17px",
-                sm: "18px",
-                md: "19px",
-              },
-              display: "block",
-            }}
-          >
-            <path
-              fill="#4285F4"
-              d="M21.35 12.27c0-.71-.06-1.4-.18-2.06H12v3.9h5.23a4.47 4.47 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.92-4.18 2.92-7.23Z"
-            />
-
-            <path
-              fill="#34A853"
-              d="M12 21.83c2.63 0 4.84-.87 6.45-2.36l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.69-1.72-5.46-4.03H3.3v2.53A9.74 9.74 0 0 0 12 21.83Z"
-            />
-
-            <path
-              fill="#FBBC05"
-              d="M6.54 13.91a5.86 5.86 0 0 1 0-3.82V7.56H3.3a9.75 9.75 0 0 0 0 8.88l3.24-2.53Z"
-            />
-
-            <path
-              fill="#EA4335"
-              d="M12 6.06c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.83 3.13 14.62 2.17 12 2.17a9.74 9.74 0 0 0-8.7 5.39l3.24 2.53C7.31 7.78 9.46 6.06 12 6.06Z"
-            />
-          </Box>
-        }
-      >
-        Continue with Google
-      </Button>
       <Box
-        ref={googleLoginRef}
         sx={{
-          position: "absolute",
-          width: 0,
-          height: 0,
-          overflow: "hidden",
-          opacity: 0,
-          pointerEvents: "none",
+          width: "100%",
+          display: "flex",
+          justifyContent: "center",
+
+          "& > div": {
+            width: "100%",
+          },
+
+          "& iframe": {
+            maxWidth: "100% !important",
+          },
+
+          "@media (max-width: 599.95px)": {
+            overflow: "hidden",
+          },
         }}
       >
         <GoogleLogin
-          onSuccess={handleGoogleSuccess}
-          onError={handleGoogleError}
+          key={location.key}
+          onSuccess={(credentialResponse) => {
+            if (!credentialResponse.credential) {
+              setError(
+                "Google sign-up failed. No credential received."
+              );
+              return;
+            }
+
+            handleGoogleRegister(
+              credentialResponse.credential
+            );
+          }}
+          onError={() => {
+            setLoading(false);
+            setError(
+              "Google sign-up failed. Please try again."
+            );
+          }}
           theme="outline"
           size="large"
           shape="rectangular"
           text="continue_with"
+          width="100%"
         />
       </Box>
+
+      {/* ---------------------------------------------------
+          LOGIN LINK
+      --------------------------------------------------- */}
+
       <Box
         sx={{
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
           gap: "6px",
+
           mt: {
             xs: "9px",
             sm: "11px",
@@ -1034,3 +1050,4 @@ const RegistrationForm: React.FC = () => {
 };
 
 export default RegistrationForm;
+

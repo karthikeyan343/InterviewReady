@@ -72,10 +72,10 @@ const HeroSection = () => {
             lg: 6,
           },
           pt: {
-            xs: "125px",
-            sm: "145px",
-            md: "125px",
-            lg: "120px",
+            xs: "115px",
+            sm: "135px",
+            md: "115px",
+            lg: "110px",
           },
 
           pb: {
@@ -98,69 +98,69 @@ const HeroSection = () => {
             maxWidth: "100%",
           }}
         >
-<Box
-  sx={{
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    mb: {
-      xs: 1.5,
-      sm: 1.8,
-      md: 2,
-    },
-  }}
->
-  <Box
-    sx={{
-      width: { xs: "6px", sm: "7px", md: "8px" },
-      height: { xs: "6px", sm: "7px", md: "8px" },
-      borderRadius: "50%",
-      backgroundColor: "#EF4444",
-      flexShrink: 0,
-      animation: "blinkDot 1.2s ease-in-out infinite",
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              mb: {
+                xs: 1.5,
+                sm: 1.8,
+                md: 2,
+              },
+            }}
+          >
+            <Box
+              sx={{
+                width: { xs: "6px", sm: "7px", md: "8px" },
+                height: { xs: "6px", sm: "7px", md: "8px" },
+                borderRadius: "50%",
+                backgroundColor: "#EF4444",
+                flexShrink: 0,
+                animation: "blinkDot 1.2s ease-in-out infinite",
 
-      "@keyframes blinkDot": {
-        "0%, 100%": {
-          opacity: 1,
-          transform: "scale(1)",
-        },
-        "50%": {
-          opacity: 0.25,
-          transform: "scale(0.75)",
-        },
-      },
-    }}
-  />
+                "@keyframes blinkDot": {
+                  "0%, 100%": {
+                    opacity: 1,
+                    transform: "scale(1)",
+                  },
+                  "50%": {
+                    opacity: 0.25,
+                    transform: "scale(0.75)",
+                  },
+                },
+              }}
+            />
 
-  <Typography
-    component="p"
-    sx={{
-      m: 0,
+            <Typography
+              component="p"
+              sx={{
+                m: 0,
 
-      color: "#6174A6",
+                color: "#6174A6",
 
-      fontFamily: '"Manrope", sans-serif',
+                fontFamily: '"Manrope", sans-serif',
 
-      fontSize: {
-        xs: "10px",
-        sm: "12px",
-        md: "13px",
-      },
+                fontSize: {
+                  xs: "10px",
+                  sm: "12px",
+                  md: "13px",
+                },
 
-      fontWeight: 700,
+                fontWeight: 700,
 
-      letterSpacing: {
-        xs: "1.2px",
-        sm: "1.7px",
-        md: "2px",
-      },
+                letterSpacing: {
+                  xs: "1.2px",
+                  sm: "1.7px",
+                  md: "2px",
+                },
 
-      lineHeight: 1.4,
-    }}
-  >
-    AI-POWERED INTERVIEW PREPARATION
-  </Typography>
-</Box>
+                lineHeight: 1.4,
+              }}
+            >
+              AI-POWERED INTERVIEW PREPARATION
+            </Typography>
+          </Box>
 
           {/* Heading */}
           <Typography
@@ -284,50 +284,50 @@ const HeroSection = () => {
               to="/register"
               variant="contained"
               endIcon={<ArrowForward />}
-sx={{
-  minWidth: {
-    xs: "210px",
-    sm: "210px",
-  },
-  height: {
-    xs: "48px",
-    sm: "52px",
-  },
-  px: {
-    xs: 2,
-    sm: 2.5,
-  },
-  borderRadius: "8px",
+              sx={{
+                minWidth: {
+                  xs: "210px",
+                  sm: "210px",
+                },
+                height: {
+                  xs: "48px",
+                  sm: "52px",
+                },
+                px: {
+                  xs: 2,
+                  sm: 2.5,
+                },
+                borderRadius: "8px",
 
-  fontFamily: '"Manrope", sans-serif',
-  fontSize: {
-    xs: "13px",
-    sm: "15px",
-  },
-  fontWeight: 700,
-  letterSpacing: "0.1px",
-  lineHeight: 1,
-  textTransform: "none",
+                fontFamily: '"Manrope", sans-serif',
+                fontSize: {
+                  xs: "13px",
+                  sm: "15px",
+                },
+                fontWeight: 700,
+                letterSpacing: "0.1px",
+                lineHeight: 1,
+                textTransform: "none",
 
-  color: "#ffffff",
+                color: "#ffffff",
 
-  backgroundColor: "#1769e0",
-  boxShadow: "0 7px 18px rgba(23, 105, 224, 0.22)",
+                backgroundColor: "#1769e0",
+                boxShadow: "0 7px 18px rgba(23, 105, 224, 0.22)",
 
-  "&:hover": {
-    backgroundColor: "#125bc8",
-    boxShadow: "0 9px 22px rgba(23, 105, 224, 0.28)",
-  },
+                "&:hover": {
+                  backgroundColor: "#125bc8",
+                  boxShadow: "0 9px 22px rgba(23, 105, 224, 0.28)",
+                },
 
-  "& .MuiButton-endIcon": {
-    marginLeft: "10px",
+                "& .MuiButton-endIcon": {
+                  marginLeft: "10px",
 
-    "& svg": {
-      fontSize: "23px",
-    },
-  },
-}}
-            > 
+                  "& svg": {
+                    fontSize: "23px",
+                  },
+                },
+              }}
+            >
               Start Practicing
             </Button>
             <Button

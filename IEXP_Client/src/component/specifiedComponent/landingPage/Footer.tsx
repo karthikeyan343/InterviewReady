@@ -32,22 +32,37 @@ const Footer: React.FC = () => {
             sm: 3,
             md: 4,
           },
+
           pt: {
-            xs: 5,
+            xs: 4,
             sm: 6,
             md: 6,
           },
+
           pb: {
             xs: 2.5,
             sm: 3,
           },
         }}
       >
+        {/* ================================
+            MAIN FOOTER GRID
+           ================================ */}
         <Box
           sx={{
             display: "grid",
+
+            /*
+             * MOBILE:
+             * 2 columns
+             *
+             * BRAND spans both columns.
+             *
+             * Product | Company
+             * Legal   | Follow Us
+             */
             gridTemplateColumns: {
-              xs: "1fr 1fr",
+              xs: "repeat(2, minmax(0, 1fr))",
               sm: "1.6fr 1fr 1fr 1fr 1fr",
               md: "1.8fr 1fr 1fr 1fr 1fr",
             },
@@ -60,11 +75,14 @@ const Footer: React.FC = () => {
             },
 
             rowGap: {
-              xs: 4,
+              xs: 3.5,
               sm: 0,
             },
           }}
         >
+          {/* ================================
+              BRAND
+             ================================ */}
           <Box
             sx={{
               gridColumn: {
@@ -82,6 +100,7 @@ const Footer: React.FC = () => {
                   xs: "165px",
                   sm: "200px",
                 },
+
                 height: "auto",
                 display: "block",
                 mb: 1.2,
@@ -91,29 +110,44 @@ const Footer: React.FC = () => {
             <Typography
               sx={{
                 fontFamily: '"Manrope", sans-serif',
+
                 fontSize: {
                   xs: "12px",
                   sm: "13px",
                 },
+
                 fontWeight: 500,
+
                 color: "#7180a3",
+
                 lineHeight: 1.5,
               }}
             >
               Practice. Improve. Get Hired.
             </Typography>
           </Box>
+
+          {/* ================================
+              PRODUCT
+             ================================ */}
           <Box>
             <Typography
               sx={{
                 fontFamily: '"Manrope", sans-serif',
+
                 fontSize: {
                   xs: "13px",
                   sm: "14px",
                 },
+
                 fontWeight: 800,
+
                 color: "#17203f",
-                mb: 1.5,
+
+                mb: {
+                  xs: 1.2,
+                  sm: 1.5,
+                },
               }}
             >
               Product
@@ -144,13 +178,18 @@ const Footer: React.FC = () => {
                   }
                   sx={{
                     fontFamily: '"Manrope", sans-serif',
+
                     textDecoration: "none",
+
                     fontSize: {
                       xs: "11px",
                       sm: "12px",
                     },
+
                     fontWeight: 500,
+
                     color: "#7180a3",
+
                     transition: "color 0.2s ease",
 
                     "&:hover": {
@@ -163,17 +202,28 @@ const Footer: React.FC = () => {
               ))}
             </Box>
           </Box>
+
+          {/* ================================
+              COMPANY
+             ================================ */}
           <Box>
             <Typography
               sx={{
                 fontFamily: '"Manrope", sans-serif',
+
                 fontSize: {
                   xs: "13px",
                   sm: "14px",
                 },
+
                 fontWeight: 800,
+
                 color: "#17203f",
-                mb: 1.5,
+
+                mb: {
+                  xs: 1.2,
+                  sm: 1.5,
+                },
               }}
             >
               Company
@@ -202,13 +252,18 @@ const Footer: React.FC = () => {
                   }
                   sx={{
                     fontFamily: '"Manrope", sans-serif',
+
                     textDecoration: "none",
+
                     fontSize: {
                       xs: "11px",
                       sm: "12px",
                     },
+
                     fontWeight: 500,
+
                     color: "#7180a3",
+
                     transition: "color 0.2s ease",
 
                     "&:hover": {
@@ -221,17 +276,28 @@ const Footer: React.FC = () => {
               ))}
             </Box>
           </Box>
+
+          {/* ================================
+              LEGAL
+             ================================ */}
           <Box>
             <Typography
               sx={{
                 fontFamily: '"Manrope", sans-serif',
+
                 fontSize: {
                   xs: "13px",
                   sm: "14px",
                 },
+
                 fontWeight: 800,
+
                 color: "#17203f",
-                mb: 1.5,
+
+                mb: {
+                  xs: 1.2,
+                  sm: 1.5,
+                },
               }}
             >
               Legal
@@ -255,13 +321,18 @@ const Footer: React.FC = () => {
                   href="#"
                   sx={{
                     fontFamily: '"Manrope", sans-serif',
+
                     textDecoration: "none",
+
                     fontSize: {
                       xs: "11px",
                       sm: "12px",
                     },
+
                     fontWeight: 500,
+
                     color: "#7180a3",
+
                     transition: "color 0.2s ease",
 
                     "&:hover": {
@@ -274,10 +345,22 @@ const Footer: React.FC = () => {
               ))}
             </Box>
           </Box>
+
+          {/* ================================
+              FOLLOW US
+             ================================ */}
           <Box
             sx={{
+              /*
+               * IMPORTANT:
+               * Mobile = normal grid cell.
+               * This creates:
+               *
+               * Product | Company
+               * Legal   | Follow Us
+               */
               gridColumn: {
-                xs: "1 / -1",
+                xs: "auto",
                 sm: "auto",
               },
             }}
@@ -285,13 +368,20 @@ const Footer: React.FC = () => {
             <Typography
               sx={{
                 fontFamily: '"Manrope", sans-serif',
+
                 fontSize: {
                   xs: "13px",
                   sm: "14px",
                 },
+
                 fontWeight: 800,
+
                 color: "#17203f",
-                mb: 1,
+
+                mb: {
+                  xs: 1,
+                  sm: 1,
+                },
               }}
             >
               Follow Us
@@ -301,7 +391,13 @@ const Footer: React.FC = () => {
               sx={{
                 display: "flex",
                 alignItems: "center",
-                gap: 0.5,
+
+                gap: {
+                  xs: 0.2,
+                  sm: 0.5,
+                },
+
+                flexWrap: "wrap",
               }}
             >
               <IconButton
@@ -322,6 +418,7 @@ const Footer: React.FC = () => {
                   }}
                 />
               </IconButton>
+
               <IconButton
                 size="small"
                 sx={{
@@ -340,6 +437,7 @@ const Footer: React.FC = () => {
                   }}
                 />
               </IconButton>
+
               <IconButton
                 size="small"
                 sx={{
@@ -358,6 +456,7 @@ const Footer: React.FC = () => {
                   }}
                 />
               </IconButton>
+
               <IconButton
                 size="small"
                 sx={{
@@ -379,19 +478,28 @@ const Footer: React.FC = () => {
             </Box>
           </Box>
         </Box>
+
+        {/* ================================
+            COPYRIGHT
+           ================================ */}
         <Box
           sx={{
             mt: {
-              xs: 4,
+              xs: 3.5,
               sm: 5,
             },
 
-            pt: 2.5,
+            pt: {
+              xs: 2,
+              sm: 2.5,
+            },
 
             borderTop: "1px solid #edf0f5",
 
             display: "flex",
+
             alignItems: "center",
+
             justifyContent: "space-between",
 
             gap: 2,
@@ -400,29 +508,41 @@ const Footer: React.FC = () => {
               xs: "column",
               sm: "row",
             },
+
+            textAlign: {
+              xs: "center",
+              sm: "left",
+            },
           }}
         >
           <Typography
             sx={{
               fontFamily: '"Manrope", sans-serif',
+
               fontSize: {
                 xs: "10px",
                 sm: "11px",
               },
+
               fontWeight: 500,
+
               color: "#7180a3",
             }}
           >
             © 2026 InterviewReady. All rights reserved.
           </Typography>
+
           <Typography
             sx={{
               fontFamily: '"Manrope", sans-serif',
+
               fontSize: {
                 xs: "10px",
                 sm: "11px",
               },
+
               fontWeight: 500,
+
               color: "#7180a3",
             }}
           >

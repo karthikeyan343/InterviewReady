@@ -12,6 +12,7 @@ import VideoCameraFrontOutlinedIcon from "@mui/icons-material/VideoCameraFrontOu
 import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import ArrowRightAltRoundedIcon from "@mui/icons-material/ArrowRightAltRounded";
+import { Link } from "react-router-dom";
 
 import howItWorksImage from "../../../assets/HowItWorksImg.png";
 
@@ -432,6 +433,8 @@ const HowItWorksSection: React.FC = () => {
             </Typography>
 
             <Button
+              component={Link}
+              to="/register"
               variant="contained"
               endIcon={<ArrowRightAltRoundedIcon />}
               sx={{

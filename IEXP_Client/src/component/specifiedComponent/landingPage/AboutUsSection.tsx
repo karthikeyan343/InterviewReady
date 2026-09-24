@@ -10,6 +10,7 @@ import TrackChangesOutlinedIcon from "@mui/icons-material/TrackChangesOutlined";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import { Link } from "react-router-dom";
 
 import aboutBackground from "../../../assets/AboutUsBg.png";
 import aboutImage from "../../../assets/AboutUsImg.png";
@@ -317,6 +318,8 @@ const AboutUsSection: React.FC = () => {
             {/* CTA */}
             <Button
               variant="contained"
+              component={Link}
+              to="/register"
               endIcon={<ArrowForwardRoundedIcon />}
               sx={{
                 mt: 3.5,

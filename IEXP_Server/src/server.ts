@@ -44,6 +44,13 @@ app.get("/", (req: Request, res: Response) => {
   });
 });
 
+app.get("/api/health", (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: "ok",
+    message: "InterviewReady server is ready",
+  });
+});
+
 const startServer = async (): Promise<void> => {
   try {
     await connectDB();

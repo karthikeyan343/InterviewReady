@@ -5,6 +5,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 
 import App from "./App";
 import "./index.css";
+import { ServerWakeupProvider } from "./context/ServerWakeupContext";
 
 const theme = createTheme({
   typography: {
@@ -18,7 +19,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <GoogleOAuthProvider clientId={googleClientId}>
       <ThemeProvider theme={theme}>
-        <App />
+        <ServerWakeupProvider>
+          <App />
+        </ServerWakeupProvider>
       </ThemeProvider>
     </GoogleOAuthProvider>
   </React.StrictMode>

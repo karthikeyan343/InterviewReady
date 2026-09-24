@@ -2,16 +2,21 @@ import React, { useEffect, useState } from "react";
 import {
   Box,
   Button,
+  CircularProgress,
   Container,
+  Dialog,
+  DialogContent,
   Drawer,
   IconButton,
   Typography,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
-import { Link } from "react-router-dom";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import { useNavigate } from "react-router-dom";
 
 import logo from "../../../assets/LogoIR.png";
+import { useServerWakeup } from "../../../context/ServerWakeupContext";
 
 const navItems = [
   { label: "Home", href: "#home" },
@@ -21,8 +26,15 @@ const navItems = [
 ];
 
 const Navbar: React.FC = () => {
+  const navigate = useNavigate();
+  const { status, ensureReady, retry } = useServerWakeup();
+
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Popup state: null = closed, "/login" | "/register" = pending destination
+  const [pendingDest, setPendingDest] = useState<string | null>(null);
+  const [popupError, setPopupError] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -52,8 +64,193 @@ const Navbar: React.FC = () => {
     }
   };
 
+  /**
+   * Called when user clicks any Login or Register button.
+   * - Server ready  → navigate immediately, no popup.
+   * - Server waking → open popup, await health, then navigate.
+   * - Server failed → open popup in error state.
+   */
+  const handleAuthNav = (destination: string) => {
+    setMobileOpen(false);
+
+    if (status === "ready") {
+      navigate(destination);
+      return;
+    }
+
+    // Show popup with waking/error state
+    setPopupError(status === "failed");
+    setPendingDest(destination);
+
+    ensureReady()
+      .then(() => {
+        setPendingDest(null);
+        navigate(destination);
+      })
+      .catch(() => {
+        setPopupError(true);
+      });
+  };
+
+  const handleRetry = () => {
+    setPopupError(false);
+    retry()
+      .then(() => {
+        if (pendingDest) {
+          const dest = pendingDest;
+          setPendingDest(null);
+          navigate(dest);
+        }
+      })
+      .catch(() => {
+        setPopupError(true);
+      });
+  };
+
+  const handleClosePopup = () => {
+    setPendingDest(null);
+    setPopupError(false);
+  };
+
   return (
     <>
+      {/* ── Wakeup Popup ── */}
+      <Dialog
+        open={pendingDest !== null}
+        onClose={popupError ? handleClosePopup : undefined}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "16px",
+              px: { xs: 3, sm: 4 },
+              py: { xs: 3.5, sm: 4 },
+              maxWidth: "400px",
+              width: "100%",
+              textAlign: "center",
+              fontFamily: '"Manrope", sans-serif',
+              boxShadow: "0 24px 60px rgba(15, 30, 80, 0.14)",
+            },
+          },
+        }}
+      >
+        <DialogContent sx={{ p: 0 }}>
+          {!popupError ? (
+            /* ── Waking state ── */
+            <>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  mb: 2.5,
+                }}
+              >
+                <CircularProgress
+                  size={44}
+                  thickness={4}
+                  sx={{ color: "#1769e0" }}
+                />
+              </Box>
+
+              <Typography
+                sx={{
+                  fontFamily: '"Manrope", sans-serif',
+                  fontSize: "18px",
+                  fontWeight: 800,
+                  color: "#07194D",
+                  mb: 1,
+                  lineHeight: 1.3,
+                }}
+              >
+                Starting InterviewReady...
+              </Typography>
+
+              <Typography
+                sx={{
+                  fontFamily: '"Manrope", sans-serif',
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "#536994",
+                  lineHeight: 1.6,
+                }}
+              >
+                Our server is waking up. This usually takes a few seconds.
+              </Typography>
+            </>
+          ) : (
+            /* ── Failed / error state ── */
+            <>
+              <Typography
+                sx={{
+                  fontFamily: '"Manrope", sans-serif',
+                  fontSize: "18px",
+                  fontWeight: 800,
+                  color: "#07194D",
+                  mb: 1,
+                  lineHeight: 1.3,
+                }}
+              >
+                Could not reach the server
+              </Typography>
+
+              <Typography
+                sx={{
+                  fontFamily: '"Manrope", sans-serif',
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "#536994",
+                  lineHeight: 1.6,
+                  mb: 3,
+                }}
+              >
+                The server didn't respond in time. Please check your connection
+                and try again.
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: 1.5,
+                }}
+              >
+                <Button
+                  onClick={handleClosePopup}
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 700,
+                    textTransform: "none",
+                    color: "#536994",
+                    borderRadius: "8px",
+                  }}
+                >
+                  Cancel
+                </Button>
+
+                <Button
+                  variant="contained"
+                  startIcon={<RefreshIcon />}
+                  onClick={handleRetry}
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 700,
+                    textTransform: "none",
+                    borderRadius: "8px",
+                    backgroundColor: "#1769e0",
+                    boxShadow: "0 6px 16px rgba(23, 105, 224, 0.22)",
+                    "&:hover": {
+                      backgroundColor: "#125bc8",
+                    },
+                  }}
+                >
+                  Retry
+                </Button>
+              </Box>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Navbar bar ── */}
       <Box
         component="nav"
         sx={{
@@ -154,6 +351,8 @@ const Navbar: React.FC = () => {
               }}
             />
           </Box>
+
+          {/* Desktop nav links */}
           <Box
             sx={{
               display: {
@@ -206,6 +405,8 @@ const Navbar: React.FC = () => {
               </Typography>
             ))}
           </Box>
+
+          {/* Desktop auth buttons */}
           <Box
             sx={{
               display: {
@@ -224,8 +425,7 @@ const Navbar: React.FC = () => {
             }}
           >
             <Button
-              component={Link}
-              to="/login"
+              onClick={() => handleAuthNav("/login")}
               sx={{
                 minWidth: "auto",
                 px: 1.5,
@@ -237,13 +437,13 @@ const Navbar: React.FC = () => {
                 },
                 fontWeight: 800,
 
-                color:"#17203f",
+                color: "#17203f",
 
                 textTransform: "none",
 
                 "&:hover": {
                   backgroundColor: "transparent",
-                  color: "#1769e0" ,
+                  color: "#1769e0",
                 },
               }}
             >
@@ -251,8 +451,7 @@ const Navbar: React.FC = () => {
             </Button>
 
             <Button
-              component={Link}
-              to="/register"
+              onClick={() => handleAuthNav("/register")}
               variant="contained"
               sx={{
                 minWidth: {
@@ -296,6 +495,8 @@ const Navbar: React.FC = () => {
               Get Started
             </Button>
           </Box>
+
+          {/* Mobile hamburger */}
           <IconButton
             onClick={() => setMobileOpen(true)}
             sx={{
@@ -304,7 +505,7 @@ const Navbar: React.FC = () => {
                 md: "none",
               },
 
-              color:"#17203f",
+              color: "#17203f",
 
               borderRadius: "10px",
             }}
@@ -313,6 +514,8 @@ const Navbar: React.FC = () => {
           </IconButton>
         </Container>
       </Box>
+
+      {/* ── Mobile Drawer ── */}
       <Drawer
         anchor="right"
         open={mobileOpen}
@@ -399,9 +602,7 @@ const Navbar: React.FC = () => {
             }}
           >
             <Button
-              component={Link}
-              to="/login"
-              onClick={() => setMobileOpen(false)}
+              onClick={() => handleAuthNav("/login")}
               sx={{
                 fontFamily: '"Manrope", sans-serif',
                 fontWeight: 700,
@@ -413,10 +614,8 @@ const Navbar: React.FC = () => {
             </Button>
 
             <Button
-              component={Link}
-              to="/register"
+              onClick={() => handleAuthNav("/register")}
               variant="contained"
-              onClick={() => setMobileOpen(false)}
               sx={{
                 height: "46px",
                 borderRadius: "10px",
@@ -437,3 +636,4 @@ const Navbar: React.FC = () => {
 };
 
 export default Navbar;
+
