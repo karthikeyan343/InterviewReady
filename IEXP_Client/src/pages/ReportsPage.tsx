@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
   Avatar,
   Box,
@@ -22,6 +22,7 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardNavbar from "../component/specifiedComponent/Dashboard/DashboardNavbar";
+import { useInterviews, useInterviewReport } from "../services/apiQueries";
 
 interface InterviewItem {
   id: string;
@@ -42,21 +43,6 @@ interface InterviewItem {
     communicationScore: number;
     problemSolvingScore: number;
   } | null;
-}
-
-interface InterviewReport {
-  id: string;
-  interviewId: string;
-  overallScore: number;
-  technicalScore: number;
-  communicationScore: number;
-  problemSolvingScore: number;
-  strengths: string[];
-  weaknesses: string[];
-  suggestions: string[];
-  summary: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 const formatDate = (value?: string | null) => {
@@ -613,55 +599,14 @@ const ReportDetailPage: React.FC<{
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
-  const [report, setReport] = useState<InterviewReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: reportResponse, isLoading: loading, error: queryError } = useInterviewReport(id);
+  const report = reportResponse?.report ?? null;
+  const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to fetch interview report.") : "";
 
   const interview = useMemo(
     () => interviews.find((item) => item.id === id) ?? null,
     [interviews, id]
   );
-
-  useEffect(() => {
-    const fetchReport = async () => {
-      if (!id) {
-        setError("Interview ID is missing.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError("");
-
-        const token = localStorage.getItem("token");
-
-        const response = await fetch(`/api/interviews/${id}/report`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to fetch interview report.");
-        }
-
-        setReport(data.report);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to fetch interview report."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchReport();
-  }, [id]);
 
   if (loading || interviewsLoading) {
     return (
@@ -1339,49 +1284,9 @@ const ReportDetailPage: React.FC<{
 
 const ReportsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [interviews, setInterviews] = useState<InterviewItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    const fetchInterviews = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const token = localStorage.getItem("token");
-
-const response = await fetch(
-  `${import.meta.env.VITE_API_BASE_URL}/interviews`,
-  {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  }
-);
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.message || "Failed to fetch interview reports."
-          );
-        }
-
-        setInterviews(data.interviews ?? []);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to fetch interview reports."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchInterviews();
-  }, []);
+  const { data: interviewsData, isLoading: loading, error: queryError } = useInterviews();
+  const interviews = (interviewsData?.interviews ?? []) as unknown as InterviewItem[];
+  const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to fetch interview reports.") : "";
 
   if (id) {
     return (

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Box,
   Button,
@@ -15,77 +15,35 @@ import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
+import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 import { useNavigate, useParams } from "react-router-dom";
-
-interface InterviewReport {
-  id: string;
-  interviewId: string;
-  overallScore: number;
-  technicalScore: number;
-  communicationScore: number;
-  problemSolvingScore: number;
-  strengths: string[];
-  weaknesses: string[];
-  suggestions: string[];
-  summary: string;
-  createdAt: string;
-  updatedAt: string;
-}
+import { useInterviewReport, retryReportGeneration, type InterviewReport } from "../services/apiQueries";
 
 const ReportDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
-  const [report, setReport] = useState<InterviewReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data, isLoading: loading, error: queryError } = useInterviewReport(id);
+  const report: InterviewReport | null = data?.report ?? null;
+  const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to load report.") : "";
 
-  useEffect(() => {
-    const fetchReport = async () => {
-      if (!id) {
-        setError("Report ID is missing.");
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError("");
-
-        const token = localStorage.getItem("token");
-
-        const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/interviews/${id}/report`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data.message || "Failed to load interview report."
-          );
-        }
-
-        setReport(data.report);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load interview report."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchReport();
-  }, [id]);
+  const handleRetry = async () => {
+    if (!id || retrying) return;
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      await retryReportGeneration(id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to retry report generation.";
+      setRetryError(msg);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -104,6 +62,285 @@ const ReportDetailPage: React.FC = () => {
           }}
         >
           <CircularProgress />
+        </Box>
+      </Box>
+    );
+  }
+
+  // Report Not Required State (< 50% questions answered)
+  if (report && report.status === "NotRequired") {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          backgroundColor: "#f6f8fc",
+          px: { xs: 2, md: 8 },
+          py: 5,
+        }}
+      >
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate("/dashboard")}
+          sx={{
+            textTransform: "none",
+            color: "#536887",
+            mb: 2,
+          }}
+        >
+          Back to Dashboard
+        </Button>
+
+        <Box
+          sx={{
+            mt: 2,
+            backgroundColor: "#fff",
+            border: "1px solid #e2e8f4",
+            borderRadius: 3,
+            p: 4,
+            maxWidth: "600px",
+            mx: "auto",
+            textAlign: "center",
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: 20,
+              fontWeight: 800,
+              color: "#172b4d",
+            }}
+          >
+            Report Not Generated
+          </Typography>
+
+          <Typography
+            sx={{
+              mt: 1.5,
+              color: "#7185a3",
+              fontSize: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            This interview was completed before answering at least 50% of the questions. A performance report was not generated.
+          </Typography>
+
+          <Button
+            variant="contained"
+            onClick={() => navigate("/dashboard")}
+            sx={{
+              mt: 3,
+              textTransform: "none",
+              borderRadius: 2,
+            }}
+          >
+            Back to Dashboard
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Report Preparing / Processing State
+  if (report && (report.status === "preparing" || report.status === "Processing")) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          backgroundColor: "#f6f8fc",
+          px: { xs: 2, md: 8 },
+          py: 5,
+        }}
+      >
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate("/dashboard")}
+          sx={{
+            textTransform: "none",
+            color: "#536887",
+            mb: 2,
+          }}
+        >
+          Back to Dashboard
+        </Button>
+
+        <Box
+          sx={{
+            mt: 2,
+            backgroundColor: "#fff",
+            border: "1px solid #e2e8f4",
+            borderRadius: 3,
+            p: { xs: 3, md: 6 },
+            textAlign: "center",
+            maxWidth: "680px",
+            mx: "auto",
+          }}
+        >
+          <Box
+            sx={{
+              width: 56,
+              height: 56,
+              borderRadius: "50%",
+              backgroundColor: "#edf4ff",
+              color: "#1677e8",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              mx: "auto",
+              mb: 2,
+            }}
+          >
+            <HourglassEmptyIcon sx={{ fontSize: 28 }} />
+          </Box>
+
+          <Typography
+            sx={{
+              fontSize: { xs: 20, md: 24 },
+              fontWeight: 800,
+              color: "#172b4d",
+              mb: 1,
+            }}
+          >
+            Your performance report is being prepared
+          </Typography>
+
+          <Typography
+            sx={{
+              color: "#7185a3",
+              fontSize: 14,
+              lineHeight: 1.6,
+              maxWidth: 480,
+              mx: "auto",
+              mb: 3,
+            }}
+          >
+            Gemini is analyzing your responses and generating detailed feedback. This typically takes 10–20 seconds.
+          </Typography>
+
+          <LinearProgress
+            sx={{
+              height: 6,
+              borderRadius: 4,
+              maxWidth: 320,
+              mx: "auto",
+              mb: 3,
+            }}
+          />
+
+          <Button
+            variant="outlined"
+            onClick={() => navigate("/dashboard")}
+            sx={{
+              textTransform: "none",
+              borderRadius: 2,
+              fontWeight: 700,
+              color: "#1677e8",
+            }}
+          >
+            Return to Dashboard
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Report Failed State
+  if (report && (report.status === "failed" || report.status === "Failed")) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          backgroundColor: "#f6f8fc",
+          px: { xs: 2, md: 8 },
+          py: 5,
+        }}
+      >
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate("/dashboard")}
+          sx={{
+            textTransform: "none",
+            color: "#536887",
+            mb: 2,
+          }}
+        >
+          Back to Dashboard
+        </Button>
+
+        <Box
+          sx={{
+            mt: 2,
+            backgroundColor: "#fff",
+            border: "1px solid #f0d2d2",
+            borderRadius: 3,
+            p: 4,
+            maxWidth: "600px",
+            mx: "auto",
+            textAlign: "center",
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: 20,
+              fontWeight: 800,
+              color: "#c53b3b",
+            }}
+          >
+            Your performance report could not be generated
+          </Typography>
+
+          <Typography
+            sx={{
+              mt: 1.5,
+              color: "#7185a3",
+              fontSize: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            {report.errorMessage || report.summary || "Gemini experienced an issue while analyzing the interview session. You can retry report generation without losing your interview."}
+          </Typography>
+
+          {retryError && (
+            <Typography
+              sx={{
+                mt: 1.5,
+                color: "#c53b3b",
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {retryError}
+            </Typography>
+          )}
+
+          <Box sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap" }}>
+            <Button
+              variant="contained"
+              onClick={handleRetry}
+              disabled={retrying}
+              startIcon={retrying ? <CircularProgress size={18} color="inherit" /> : <RefreshIcon />}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+                px: 3,
+                fontWeight: 700,
+                backgroundColor: "#1677e8",
+              }}
+            >
+              {retrying ? "Retrying..." : "Retry Report Generation"}
+            </Button>
+
+            <Button
+              variant="outlined"
+              onClick={() => navigate("/dashboard")}
+              sx={{
+                textTransform: "none",
+                borderRadius: 2,
+                color: "#536887",
+                borderColor: "#d0d7e2",
+              }}
+            >
+              Back to Dashboard
+            </Button>
+          </Box>
         </Box>
       </Box>
     );

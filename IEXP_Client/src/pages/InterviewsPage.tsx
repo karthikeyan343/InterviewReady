@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Avatar,
   Box,
@@ -15,28 +15,12 @@ import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../component/specifiedComponent/Dashboard/DashboardNavbar";
 import NewInterviewModal from "../component/specifiedComponent/Dashboard/NewInterviewModal";
-
-
-interface InterviewItem {
-  id: string;
-  role: string;
-  interviewType: string;
-  difficulty: "Easy" | "Medium" | "Hard";
-  status: "Not Started" | "In Progress" | "Completed";
-  createdAt: string;
-  startedAt?: string;
-  endedAt?: string;
-  questionCount: number;
-  durationMinutes: number | null;
-  score: number | null;
-  report: {
-    id: string;
-    overallScore: number;
-    technicalScore: number;
-    communicationScore: number;
-    problemSolvingScore: number;
-  } | null;
-}
+import {
+  useInterviews,
+  invalidateInterviews,
+  invalidateDashboard,
+  type InterviewItem,
+} from "../services/apiQueries";
 
 interface NewInterviewData {
   role: string;
@@ -53,13 +37,13 @@ interface NewInterviewData {
 const InterviewsPage: React.FC = () => {
   const navigate = useNavigate();
 
-  const [interviews, setInterviews] = useState<InterviewItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data, isLoading: loading, error: queryError } = useInterviews();
+  const interviews: InterviewItem[] = data?.interviews || [];
+  const error = queryError ? (queryError instanceof Error ? queryError.message : "Failed to load interviews.") : "";
   const [openModal, setOpenModal] = useState(false);
 
   const handleCreateInterview = async (
-    data: NewInterviewData
+    newInterviewData: NewInterviewData
   ) => {
     try {
       const token = localStorage.getItem("token");
@@ -77,7 +61,7 @@ const InterviewsPage: React.FC = () => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(data),
+          body: JSON.stringify(newInterviewData),
         }
       );
 
@@ -101,60 +85,19 @@ const InterviewsPage: React.FC = () => {
         return;
       }
 
+      invalidateInterviews();
+      invalidateDashboard();
+
       setOpenModal(false);
 
       navigate(`/interviews/${interviewId}`);
-    } catch (error) {
+    } catch (createErr) {
       console.error(
         "Create interview error:",
-        error
+        createErr
       );
     }
   };
-
-  useEffect(() => {
-    const fetchInterviews = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const token = localStorage.getItem("token");
-
-const response = await fetch(
-  `${import.meta.env.VITE_API_BASE_URL}/interviews`,
-  {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {}),
-    },
-  }
-);
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data?.message || "Failed to load interviews.");
-        }
-
-        setInterviews(data.interviews || []);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load interviews."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchInterviews();
-  }, []);
 
   return (
     <Box
@@ -417,18 +360,53 @@ const response = await fetch(
                   />
 
                   <Chip
-                    label={item.status}
+                    label={
+                      item.report?.status === "preparing" ||
+                      item.report?.status === "Processing" ||
+                      item.reportStatus === "preparing" ||
+                      item.reportStatus === "Processing"
+                        ? "Report Preparing..."
+                        : item.report?.status === "failed" ||
+                          item.report?.status === "Failed" ||
+                          item.reportStatus === "failed" ||
+                          item.reportStatus === "Failed"
+                          ? "Report Failed"
+                          : item.reportStatus === "NotRequired"
+                            ? "Below 50% Threshold"
+                            : item.status
+                    }
                     size="small"
-                    icon={<PlayArrowIcon />}
+                    icon={item.status !== "Completed" ? <PlayArrowIcon /> : undefined}
                     sx={{
                       backgroundColor:
-                        item.status === "Completed"
-                          ? "#eaf8ef"
-                          : "#fff5dc",
+                        item.report?.status === "preparing" ||
+                        item.report?.status === "Processing" ||
+                        item.reportStatus === "preparing" ||
+                        item.reportStatus === "Processing"
+                          ? "#f0f4ff"
+                          : item.report?.status === "failed" ||
+                            item.report?.status === "Failed" ||
+                            item.reportStatus === "failed" ||
+                            item.reportStatus === "Failed"
+                            ? "#fff0f0"
+                            : item.status === "Completed"
+                              ? "#eaf8ef"
+                              : "#fff5dc",
                       color:
-                        item.status === "Completed"
-                          ? "#26834a"
-                          : "#a06a00",
+                        item.report?.status === "preparing" ||
+                        item.report?.status === "Processing" ||
+                        item.reportStatus === "preparing" ||
+                        item.reportStatus === "Processing"
+                          ? "#2b66d9"
+                          : item.report?.status === "failed" ||
+                            item.report?.status === "Failed" ||
+                            item.reportStatus === "failed" ||
+                            item.reportStatus === "Failed"
+                            ? "#c53b3b"
+                            : item.status === "Completed"
+                              ? "#26834a"
+                              : "#a06a00",
+                      fontWeight: 700,
                     }}
                   />
                 </Box>
@@ -525,7 +503,7 @@ const response = await fetch(
                   onClick={() =>
                     navigate(
                       item.status === "Completed"
-                        ? `/reports/${item.report?.id || item.id}`
+                        ? `/reports/${item.id}`
                         : `/interviews/${item.id}`
                     )
                   }
@@ -538,7 +516,9 @@ const response = await fetch(
                   }}
                 >
                   {item.status === "Completed"
-                    ? "View Report"
+                    ? (item.report?.status === "preparing" || item.reportStatus === "preparing"
+                        ? "View Progress"
+                        : "View Report")
                     : "Continue"}
                 </Button>
 

@@ -16,7 +16,8 @@ export interface IInterviewReport extends Document {
 
   summary: string;
 
-  status?: "preparing" | "ready" | "failed";
+  status?: "NotRequired" | "Processing" | "Completed" | "Failed" | "preparing" | "ready" | "failed";
+  errorMessage?: string;
 
   createdAt: Date;
   updatedAt: Date;
@@ -93,8 +94,21 @@ const interviewReportSchema = new Schema<IInterviewReport>(
 
     status: {
       type: String,
-      enum: ["preparing", "ready", "failed"],
-      default: "ready",
+      enum: [
+        "NotRequired",
+        "Processing",
+        "Completed",
+        "Failed",
+        "preparing",
+        "ready",
+        "failed",
+      ],
+      default: "Processing",
+    },
+
+    errorMessage: {
+      type: String,
+      default: null,
     },
   },
   {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Avatar,
   Box,
@@ -13,73 +13,22 @@ import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
-
-interface ResumeData {
-  id: string;
-  originalFileName: string;
-  fileType: string;
-  uploadedAt: string;
-  updatedAt?: string;
-}
+import { useResume, invalidateResume } from "../services/apiQueries";
 
 const ResumePage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [resume, setResume] = useState<ResumeData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading, error: queryError, refetch } = useResume();
+  const resume = data?.resume ?? null;
+
   const [uploading, setUploading] = useState(false);
   const [viewing, setViewing] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    queryError ? (queryError instanceof Error ? queryError.message : "Failed to load resume.") : ""
+  );
   const [message, setMessage] = useState("");
 
   const getToken = () => localStorage.getItem("token");
-
-  const fetchResume = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const token = getToken();
-
-const response = await fetch(
-  `${import.meta.env.VITE_API_BASE_URL}/resume/me`,
-  {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {}),
-    },
-  }
-);
-
-      const data = await response.json();
-
-      if (response.status === 404) {
-        setResume(null);
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(data?.message || "Failed to load resume.");
-      }
-
-      setResume(data.resume);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load resume."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchResume();
-  }, []);
 
   const handleUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -112,29 +61,29 @@ const response = await fetch(
 
       const token = getToken();
 
-const response = await fetch(
-  `${import.meta.env.VITE_API_BASE_URL}/resume/upload`,
-  {
-    method: "POST",
-    headers: {
-      ...(token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {}),
-    },
-    body: formData,
-  }
-);
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/resume/upload`,
+        {
+          method: "POST",
+          headers: {
+            ...(token
+              ? {
+                  Authorization: `Bearer ${token}`,
+                }
+              : {}),
+          },
+          body: formData,
+        }
+      );
 
-      const data = await response.json();
+      const resData = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.message || "Failed to upload resume.");
+        throw new Error(resData?.message || "Failed to upload resume.");
       }
 
-      setResume(data.resume);
-      setMessage(data.message || "Resume uploaded successfully.");
+      invalidateResume();
+      setMessage(resData.message || "Resume uploaded successfully.");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to upload resume."
@@ -678,7 +627,7 @@ const response = await fetch(
                 </Button>
 
                 <IconButton
-                  onClick={fetchResume}
+                  onClick={() => void refetch()}
                   disabled={loading}
                   sx={{
                     width: {

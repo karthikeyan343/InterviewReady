@@ -241,32 +241,71 @@ REQUIRED JSON FORMAT
 }
 `;
 
-    const response =
-      await gemini.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-        },
-      });
+    const candidateModels = [
+      process.env.GEMINI_REPORT_MODEL,
+      "gemini-3.8-flash",
+    ].filter(Boolean) as string[];
 
-    if (!response.text) {
-      throw new Error(
-        "Gemini returned an empty interview report response"
+    let responseText = "";
+    let lastError: Error | null = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        console.log(`[Gemini Report] Requesting report generation using model ${modelName}...`);
+        const response = await gemini.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+          },
+        });
+
+        if (response.text && response.text.trim()) {
+          responseText = response.text.trim();
+          console.log(`[Gemini Report] Successfully received response from ${modelName}`);
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`[Gemini Report] Attempt with model ${modelName} failed:`, err?.message || err);
+        lastError = err instanceof Error ? err : new Error(String(err));
+      }
+    }
+
+    if (!responseText) {
+      throw (
+        lastError ||
+        new Error("Gemini returned an empty interview report response from all candidate models.")
       );
     }
+
+    // Strip markdown code fences if model enclosed JSON
+    let cleanJson = responseText;
+    if (cleanJson.startsWith("```json")) {
+      cleanJson = cleanJson.slice(7);
+    } else if (cleanJson.startsWith("```")) {
+      cleanJson = cleanJson.slice(3);
+    }
+    if (cleanJson.endsWith("```")) {
+      cleanJson = cleanJson.slice(0, -3);
+    }
+    cleanJson = cleanJson.trim();
 
     let report: InterviewReportOutput;
 
     try {
-      report =
-        JSON.parse(
-          response.text
-        ) as InterviewReportOutput;
+      report = JSON.parse(cleanJson) as InterviewReportOutput;
     } catch {
-      throw new Error(
-        "Gemini returned invalid JSON for the interview report"
-      );
+      // Fallback regex extractor for JSON object if surrounded by preamble
+      const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          report = JSON.parse(jsonMatch[0]) as InterviewReportOutput;
+        } catch {
+          throw new Error("Gemini returned invalid JSON for the interview report");
+        }
+      } else {
+        throw new Error("Gemini returned invalid JSON for the interview report");
+      }
     }
 
     const scores = [

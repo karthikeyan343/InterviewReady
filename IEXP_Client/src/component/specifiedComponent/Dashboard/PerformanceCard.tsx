@@ -1,58 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Box, Typography } from "@mui/material";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
-
-interface ReadinessData {
-  overall: number;
-  technical: number;
-  communication: number;
-  problemSolving: number;
-}
-
-interface DashboardResponse {
-  readiness: ReadinessData;
-}
+import { useDashboardData } from "../../../services/apiQueries";
 
 const PerformanceCard: React.FC = () => {
-  const [readiness, setReadiness] =
-    useState<ReadinessData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPerformance = async () => {
-      try {
-        const token = localStorage.getItem("token");
-
-        const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/interviews/dashboard`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch performance data");
-        }
-
-        const result: DashboardResponse =
-          await response.json();
-
-        setReadiness(result.readiness);
-      } catch (error) {
-        console.error(
-          "Performance data error:",
-          error
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPerformance();
-  }, []);
+  const { data, isLoading: loading } = useDashboardData();
+  const readiness = data?.readiness ?? null;
 
   if (loading) {
     return (

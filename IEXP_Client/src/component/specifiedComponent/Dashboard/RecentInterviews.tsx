@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Box,
   Button,
@@ -7,70 +7,12 @@ import {
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import { useNavigate } from "react-router-dom";
-
-interface RecentInterview {
-  id: string;
-  role: string;
-  interviewType: "Technical" | "Behavioral" | "Mixed";
-  difficulty: "Easy" | "Medium" | "Hard";
-  status:
-    | "Not Started"
-    | "In Progress"
-    | "Completed"
-    | "Abandoned";
-  createdAt: string;
-  score: number | null;
-}
-
-interface DashboardResponse {
-  recentInterviews: RecentInterview[];
-}
+import { useDashboardData, type RecentInterview } from "../../../services/apiQueries";
 
 const RecentInterviews: React.FC = () => {
   const navigate = useNavigate();
-
-  const [interviews, setInterviews] = useState<
-    RecentInterview[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchRecentInterviews = async () => {
-      try {
-        const token = localStorage.getItem("token");
-
-        const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/interviews/dashboard`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            "Failed to fetch recent interviews"
-          );
-        }
-
-        const result: DashboardResponse =
-          await response.json();
-
-        setInterviews(result.recentInterviews ?? []);
-      } catch (error) {
-        console.error(
-          "Recent interviews error:",
-          error
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRecentInterviews();
-  }, []);
+  const { data, isLoading: loading } = useDashboardData();
+  const interviews: RecentInterview[] = data?.recentInterviews ?? [];
 
   const getStatusStyle = (
     status: RecentInterview["status"]
@@ -399,30 +341,69 @@ const RecentInterviews: React.FC = () => {
                     py: "5px",
                     borderRadius: "7px",
                     backgroundColor:
-                      statusStyle.backgroundColor,
-                    color: statusStyle.color,
+                      interview.reportStatus === "preparing" ||
+                      interview.reportStatus === "Processing"
+                        ? "#f0f4ff"
+                        : interview.reportStatus === "failed" ||
+                          interview.reportStatus === "Failed"
+                          ? "#fff0f0"
+                          : statusStyle.backgroundColor,
+                    color:
+                      interview.reportStatus === "preparing" ||
+                      interview.reportStatus === "Processing"
+                        ? "#2b66d9"
+                        : interview.reportStatus === "failed" ||
+                          interview.reportStatus === "Failed"
+                          ? "#c53b3b"
+                          : statusStyle.color,
                     flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
                   }}
                 >
+                  {(interview.reportStatus === "preparing" ||
+                    interview.reportStatus === "Processing") && (
+                    <Box
+                      sx={{
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        backgroundColor: "#356ae6",
+                        animation: "pulse 1.5s infinite",
+                        "@keyframes pulse": {
+                          "0%": { opacity: 0.4 },
+                          "50%": { opacity: 1 },
+                          "100%": { opacity: 0.4 },
+                        },
+                      }}
+                    />
+                  )}
                   <Typography
                     sx={{
                       fontSize: "10px",
                       fontWeight: 700,
                     }}
                   >
-                    {interview.status}
+                    {interview.reportStatus === "preparing" ||
+                    interview.reportStatus === "Processing"
+                      ? "Report Preparing..."
+                      : interview.reportStatus === "failed" ||
+                        interview.reportStatus === "Failed"
+                        ? "Report Failed"
+                        : interview.status}
                   </Typography>
                 </Box>
                 <Box
                   sx={{
-                    width: "52px",
+                    width: "58px",
                     textAlign: "right",
                     flexShrink: 0,
                   }}
                 >
                   <Typography
                     sx={{
-                      fontSize: "15px",
+                      fontSize: "14px",
                       fontWeight: 800,
                       color:
                         interview.score !== null
@@ -432,7 +413,10 @@ const RecentInterviews: React.FC = () => {
                   >
                     {interview.score !== null
                       ? `${interview.score}%`
-                      : "--"}
+                      : interview.reportStatus === "preparing" ||
+                        interview.reportStatus === "Processing"
+                        ? "..."
+                        : "--"}
                   </Typography>
                 </Box>
               </Box>

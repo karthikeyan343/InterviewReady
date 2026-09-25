@@ -1,5 +1,4 @@
 import React, {
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -11,76 +10,15 @@ import {
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-
-interface ResumeData {
-  id: string;
-  originalFileName: string;
-  fileType: string;
-  uploadedAt: string;
-  updatedAt?: string;
-}
+import { useResume, invalidateResume } from "../../../services/apiQueries";
 
 const ResumeStatusCard: React.FC = () => {
-  const fileInputRef = useRef<HTMLInputElement | null>(
-    null
-  );
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { data, isLoading: loading } = useResume();
+  const resume = data?.resume ?? null;
 
-  const [resume, setResume] =
-    useState<ResumeData | null>(null);
-
-  const [loading, setLoading] = useState(true);
-
-  const [uploading, setUploading] =
-    useState(false);
-
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-
-  const fetchResume = async () => {
-    try {
-      const token = localStorage.getItem("token");
-
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/resume/me`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.status === 404) {
-        setResume(null);
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to fetch resume"
-        );
-      }
-
-      const result = await response.json();
-
-      setResume(result.resume ?? null);
-    } catch (error) {
-      console.error(
-        "Resume fetch error:",
-        error
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchResume();
-  }, []);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -215,12 +153,7 @@ const ResumeStatusCard: React.FC = () => {
         );
       }
 
-      setResume(result.resume);
-
-      console.log(
-        "Resume uploaded:",
-        result.message
-      );
+      invalidateResume();
     } catch (error) {
       console.error(
         "Resume upload error:",

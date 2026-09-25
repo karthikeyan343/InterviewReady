@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Box,
   Button,
@@ -7,70 +7,12 @@ import {
 import PlayArrowOutlinedIcon from "@mui/icons-material/PlayArrowOutlined";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { useNavigate } from "react-router-dom";
-
-interface ContinuePracticeData {
-  id: string;
-  role: string;
-  interviewType: "Technical" | "Behavioral" | "Mixed";
-  difficulty: "Easy" | "Medium" | "Hard";
-  status: "Not Started" | "In Progress";
-  createdAt: string;
-}
-
-interface DashboardResponse {
-  continuePractice: ContinuePracticeData | null;
-}
+import { useDashboardData } from "../../../services/apiQueries";
 
 const ContinuePractice: React.FC = () => {
   const navigate = useNavigate();
-
-  const [practice, setPractice] =
-    useState<ContinuePracticeData | null>(null);
-
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchContinuePractice = async () => {
-      try {
-        const token = localStorage.getItem("token");
-
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/interviews/dashboard`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            "Failed to fetch practice data"
-          );
-        }
-
-        const result: DashboardResponse =
-          await response.json();
-
-        setPractice(result.continuePractice);
-      } catch (error) {
-        console.error(
-          "Continue practice error:",
-          error
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchContinuePractice();
-  }, []);
+  const { data, isLoading: loading } = useDashboardData();
+  const practice = data?.continuePractice ?? null;
 
   if (loading) {
     return (

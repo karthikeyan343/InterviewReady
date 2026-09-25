@@ -3,6 +3,10 @@ import {
   Avatar,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Typography,
   useTheme,
@@ -16,16 +20,20 @@ import VideocamOffIcon from "@mui/icons-material/VideocamOff";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import CallEndIcon from "@mui/icons-material/CallEnd";
+import LogoutIcon from "@mui/icons-material/Logout";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import SignalCellularAltIcon from "@mui/icons-material/SignalCellularAlt";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 
 import { useNavigate, useParams } from "react-router-dom";
 
 import GeminiLiveService from "../services/geminiLiveService";
 import InteractiveAvatar from "../component/specifiedComponent/InteractiveAvatar";
 import InterviewReadyScreen from "./InterviewReadyScreen";
+import { invalidateDashboard, invalidateInterviews } from "../services/apiQueries";
 
 const InterviewPage: React.FC = () => {
   const { id } = useParams();
@@ -93,14 +101,30 @@ const InterviewPage: React.FC = () => {
   const [reconnecting, setReconnecting] = useState(false);
   const [reconnectNotice, setReconnectNotice] = useState("");
 
+  const [idleProcessingNotice, setIdleProcessingNotice] = useState("");
+  const [showHighDemandModal, setShowHighDemandModal] = useState(false);
+  const [showEndEarlyModal, setShowEndEarlyModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+
+  // 15-second candidate no-answer countdown
+  const [candidateCountdown, setCandidateCountdown] = useState<number | null>(null);
+  const candidateNoAnswerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const candidateCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isProcessingSkipRef = useRef(false);
+
+  const isLeavingRef = useRef(false);
   const isReconnectingRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
-  const responseWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Single authoritative Gemini idle watchdog
+  const geminiIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const geminiRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const geminiMeaningfulProgressRef = useRef(false);
 
   // Before unload warning while interview is active
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (started && !interviewCompletedRef.current) {
+      if (started && !interviewCompletedRef.current && !isLeavingRef.current) {
         e.preventDefault();
         e.returnValue = "";
         return "";
@@ -121,9 +145,24 @@ const InterviewPage: React.FC = () => {
         timerRef.current = null;
       }
 
-      if (responseWatchdogTimerRef.current) {
-        clearTimeout(responseWatchdogTimerRef.current);
-        responseWatchdogTimerRef.current = null;
+      if (candidateNoAnswerTimeoutRef.current) {
+        clearTimeout(candidateNoAnswerTimeoutRef.current);
+        candidateNoAnswerTimeoutRef.current = null;
+      }
+
+      if (candidateCountdownIntervalRef.current) {
+        clearInterval(candidateCountdownIntervalRef.current);
+        candidateCountdownIntervalRef.current = null;
+      }
+
+      if (geminiIdleTimerRef.current) {
+        clearTimeout(geminiIdleTimerRef.current);
+        geminiIdleTimerRef.current = null;
+      }
+
+      if (geminiRecoveryTimerRef.current) {
+        clearTimeout(geminiRecoveryTimerRef.current);
+        geminiRecoveryTimerRef.current = null;
       }
 
       liveServiceRef.current?.disconnect();
@@ -268,57 +307,182 @@ const InterviewPage: React.FC = () => {
     return turnSaveQueueRef.current;
   };
 
-  const clearResponseWatchdog = () => {
-    if (responseWatchdogTimerRef.current) {
-      clearTimeout(responseWatchdogTimerRef.current);
-      responseWatchdogTimerRef.current = null;
+  const clearCandidateNoAnswerTimeout = () => {
+    if (candidateNoAnswerTimeoutRef.current) {
+      clearTimeout(candidateNoAnswerTimeoutRef.current);
+      candidateNoAnswerTimeoutRef.current = null;
     }
+    if (candidateCountdownIntervalRef.current) {
+      clearInterval(candidateCountdownIntervalRef.current);
+      candidateCountdownIntervalRef.current = null;
+    }
+    setCandidateCountdown(null);
   };
 
-  const startResponseWatchdog = () => {
-    clearResponseWatchdog();
-    responseWatchdogTimerRef.current = setTimeout(() => {
-      responseWatchdogTimerRef.current = null;
+  const startCandidateNoAnswerTimeout = () => {
+    clearCandidateNoAnswerTimeout();
+    if (
+      interviewCompletedRef.current ||
+      waitingForClosingStatementRef.current ||
+      geminiSpeakingRef.current ||
+      !started
+    ) {
+      return;
+    }
+
+    isProcessingSkipRef.current = false;
+    setCandidateCountdown(15);
+    let remaining = 15;
+
+    candidateCountdownIntervalRef.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining >= 0) {
+        setCandidateCountdown(remaining);
+      } else {
+        if (candidateCountdownIntervalRef.current) {
+          clearInterval(candidateCountdownIntervalRef.current);
+          candidateCountdownIntervalRef.current = null;
+        }
+      }
+    }, 1000);
+
+    candidateNoAnswerTimeoutRef.current = setTimeout(() => {
+      clearCandidateNoAnswerTimeout();
+
+      if (
+        interviewCompletedRef.current ||
+        waitingForClosingStatementRef.current ||
+        geminiSpeakingRef.current ||
+        isProcessingSkipRef.current ||
+        isCandidateSpeakingTurnRef.current
+      ) {
+        return;
+      }
+
+      isProcessingSkipRef.current = true;
+      console.warn(
+        `[Live Interview] Candidate no-answer 15s timeout reached for Question ${interviewerQuestionCountRef.current}. Marking question skipped.`,
+      );
+
+      setCandidateTranscript(
+        "Question skipped (no response received within 15 seconds).",
+      );
+
+      void saveConversationTurn("candidate", "[Skipped / No Answer]", false).catch(
+        (err) => {
+          console.warn("Error saving skipped turn:", err);
+        },
+      );
+
+      const target = totalQuestionsRef.current || 20;
+      const currentQ = interviewerQuestionCountRef.current;
+
+      if (currentQ >= target) {
+        console.log(
+          "[Live Interview] Target questions reached after skip. Requesting closing statement.",
+        );
+        waitingForClosingStatementRef.current = true;
+        liveServiceRef.current?.sendText(
+          `The question was skipped due to timeout. The required limit of ${target} questions has been reached. Do NOT ask any more questions. Give a short closing statement concluding the interview: "Thank you for attending the interview. That concludes the interview." and stop speaking.`,
+        );
+      } else {
+        liveServiceRef.current?.sendText(
+          "The candidate did not provide an answer within 15 seconds. The question was skipped. Please ask the next question now.",
+        );
+      }
+
+      startGeminiIdleWatchdog();
+    }, 15000);
+  };
+
+  const clearGeminiIdleWatchdog = () => {
+    if (geminiIdleTimerRef.current) {
+      clearTimeout(geminiIdleTimerRef.current);
+      geminiIdleTimerRef.current = null;
+    }
+    if (geminiRecoveryTimerRef.current) {
+      clearTimeout(geminiRecoveryTimerRef.current);
+      geminiRecoveryTimerRef.current = null;
+    }
+    setIdleProcessingNotice("");
+  };
+
+  const startGeminiIdleWatchdog = () => {
+    clearGeminiIdleWatchdog();
+    if (interviewCompletedRef.current) return;
+
+    geminiMeaningfulProgressRef.current = false;
+
+    geminiIdleTimerRef.current = setTimeout(() => {
+      geminiIdleTimerRef.current = null;
+
       if (
         !interviewCompletedRef.current &&
         !geminiSpeakingRef.current &&
-        liveServiceRef.current?.isConnected()
+        !geminiMeaningfulProgressRef.current &&
+        started
       ) {
+        console.warn(
+          "[Live Interview] 20s Gemini idle watchdog fired without response. Performing recovery...",
+        );
+        setIdleProcessingNotice(
+          "Your response was received. We're processing the next question...",
+        );
+
         const target = totalQuestionsRef.current || 20;
-        if (
+        const isClosing =
           waitingForClosingStatementRef.current ||
-          candidateAnswerCountRef.current >= target
-        ) {
-          console.warn(
-            "[Live Interview] Watchdog: Gemini has not delivered closing statement. Nudging...",
-          );
-          liveServiceRef.current.sendText(
-            "The candidate has completed the final question. Please provide a brief closing statement concluding the interview: 'Thank you for attending the interview. That concludes the interview.' and stop speaking.",
-          );
+          candidateAnswerCountRef.current >= target;
+
+        if (liveServiceRef.current?.isConnected()) {
+          if (isClosing) {
+            console.log(
+              "[Live Interview] Recovery: Nudging Gemini for final closing statement...",
+            );
+            liveServiceRef.current.sendText(
+              "The candidate has completed the final question. Please provide a brief closing statement concluding the interview: 'Thank you for attending the interview. That concludes the interview.' and stop speaking.",
+            );
+          } else {
+            const lastCandidateAns = lastSavedCandidateTextRef.current;
+            console.log(
+              "[Live Interview] Recovery: Prompting Gemini to progress with next question...",
+            );
+            if (lastCandidateAns && !lastCandidateAns.startsWith("[Skipped")) {
+              liveServiceRef.current.sendText(
+                `The candidate completed their answer: "${lastCandidateAns}". Please ask the next question now.`,
+              );
+            } else {
+              liveServiceRef.current.sendText(
+                "The candidate has completed their response. Please ask the next question now.",
+              );
+            }
+          }
         } else {
           console.warn(
-            "[Live Interview] Watchdog: Gemini has not responded. Nudging Gemini...",
+            "[Live Interview] Recovery: Connection dropped. Reconnecting...",
           );
-          liveServiceRef.current.sendText(
-            "The candidate has completed their response. Please ask the next question.",
-          );
+          void handleReconnect();
         }
 
-        responseWatchdogTimerRef.current = setTimeout(() => {
-          responseWatchdogTimerRef.current = null;
+        // 10-second recovery window (total ~30s)
+        geminiRecoveryTimerRef.current = setTimeout(() => {
+          geminiRecoveryTimerRef.current = null;
+
           if (
             !interviewCompletedRef.current &&
             !geminiSpeakingRef.current &&
+            !geminiMeaningfulProgressRef.current &&
             started
           ) {
             console.warn(
-              "[Live Interview] Watchdog: Still no response from Gemini. Reconnecting session...",
+              "[Live Interview] Recovery window (~30s total) expired without response. Displaying high demand notification.",
             );
-            void handleReconnect();
+            setIdleProcessingNotice("");
+            setShowHighDemandModal(true);
           }
-        }, 6000);
+        }, 10000);
       }
-    }, 10000);
+    }, 20000);
   };
 
   const completeInterview = () => {
@@ -328,7 +492,8 @@ const InterviewPage: React.FC = () => {
 
     interviewCompletedRef.current = true;
     pendingCompletionRef.current = false;
-    clearResponseWatchdog();
+    clearCandidateNoAnswerTimeout();
+    clearGeminiIdleWatchdog();
 
     setIsCompletingInterview(true);
 
@@ -363,12 +528,46 @@ const InterviewPage: React.FC = () => {
         console.log("[Live Interview] Final complete response:", data);
       } catch (error) {
         console.warn("[Live Interview] Error during complete call:", error);
+      } finally {
+        // Invalidate interview list and dashboard caches
+        invalidateInterviews();
+        invalidateDashboard();
       }
     };
 
     void triggerBackendCompletion();
 
     // Immediately finish interview UI flow and navigate to dashboard
+    navigate("/dashboard");
+  };
+
+  const handleLeaveInterview = () => {
+    setShowLeaveModal(true);
+  };
+
+  const handleConfirmLeave = () => {
+    setShowLeaveModal(false);
+    isLeavingRef.current = true;
+
+    clearCandidateNoAnswerTimeout();
+    clearGeminiIdleWatchdog();
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    liveServiceRef.current?.disconnect();
+    liveServiceRef.current = null;
+
+    streamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
+    streamRef.current = null;
+
+    invalidateInterviews();
+    invalidateDashboard();
+
     navigate("/dashboard");
   };
 
@@ -536,22 +735,26 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
     onCandidateSpeechStart: () => {
       // Candidate started speaking the current turn:
-      // immediately clear previous answer and begin fresh speech transcript
+      // immediately clear previous answer and cancel candidate timeout
       isCandidateSpeakingTurnRef.current = true;
+      clearCandidateNoAnswerTimeout();
+      clearGeminiIdleWatchdog();
       setCandidateTranscript("");
       setAiStatus("Listening");
-      clearResponseWatchdog();
     },
 
     onInputTranscript: (text: string) => {
       if (!geminiSpeakingRef.current && !interviewCompletedRef.current) {
         setAiStatus("Listening");
         isCandidateSpeakingTurnRef.current = true;
+        clearCandidateNoAnswerTimeout();
         setCandidateTranscript(text);
       }
     },
 
     onCandidateTurnEnd: (text: string) => {
+      clearCandidateNoAnswerTimeout();
+
       const cleanedText = text.trim();
       if (!cleanedText || interviewCompletedRef.current) {
         return;
@@ -584,7 +787,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         );
       }
 
-      startResponseWatchdog();
+      startGeminiIdleWatchdog();
     },
 
     onOutputTranscript: (text: string) => {
@@ -593,7 +796,6 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         setInterviewerTranscript(cleanedText);
       }
 
-      clearResponseWatchdog();
       liveServiceRef.current?.setSpeakerEnabled(speakerEnabled);
 
       if (!geminiSpeakingRef.current) {
@@ -603,7 +805,9 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
     onSpeakingStart: () => {
       geminiSpeakingRef.current = true;
-      clearResponseWatchdog();
+      geminiMeaningfulProgressRef.current = true;
+      clearCandidateNoAnswerTimeout();
+      clearGeminiIdleWatchdog();
       setInterviewerTranscript("");
       liveServiceRef.current?.pauseMicrophone();
       setAiStatus("Speaking");
@@ -614,8 +818,9 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       const cleanedText = completeText.trim();
       if (!cleanedText) return;
 
+      geminiMeaningfulProgressRef.current = true;
       setInterviewerTranscript(cleanedText);
-      clearResponseWatchdog();
+      clearGeminiIdleWatchdog();
 
       if (lastSavedInterviewerTextRef.current === cleanedText) {
         return;
@@ -696,7 +901,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     onSpeakingEnd: () => {
       geminiSpeakingRef.current = false;
       setGeminiAudioLevel(0);
-      clearResponseWatchdog();
+      clearGeminiIdleWatchdog();
 
       if (pendingCompletionRef.current && !interviewCompletedRef.current) {
         console.log(
@@ -712,12 +917,15 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
       if (!interviewCompletedRef.current) {
         setAiStatus("Listening");
+        // Start 15-second candidate no-answer timeout now that Gemini has finished speaking
+        startCandidateNoAnswerTimeout();
       }
     },
 
     onError: (liveError: any) => {
       console.error("Gemini Live error:", liveError);
-      clearResponseWatchdog();
+      clearCandidateNoAnswerTimeout();
+      clearGeminiIdleWatchdog();
       if (started && !interviewCompletedRef.current) {
         void handleReconnect();
       } else {
@@ -732,8 +940,9 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
     onClose: () => {
       console.log("Gemini Live WebSocket closed.");
-      clearResponseWatchdog();
-      if (started && !interviewCompletedRef.current) {
+      clearCandidateNoAnswerTimeout();
+      clearGeminiIdleWatchdog();
+      if (started && !interviewCompletedRef.current && !isLeavingRef.current) {
         void handleReconnect();
       }
     },
@@ -978,6 +1187,19 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       return;
     }
 
+    const target = totalQuestionsRef.current || 20;
+    const threshold = Math.ceil(target * 0.5);
+    const answered = candidateAnswerCountRef.current;
+
+    if (answered < threshold) {
+      setShowEndEarlyModal(true);
+    } else {
+      completeInterview();
+    }
+  };
+
+  const handleConfirmEndAnyway = () => {
+    setShowEndEarlyModal(false);
     completeInterview();
   };
 
@@ -1014,6 +1236,62 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         position: "relative",
       }}
     >
+      {/* 20-Second Idle Warning Notification Banner */}
+      {idleProcessingNotice && !reconnecting && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: { xs: "10px", sm: "16px" },
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            width: {
+              xs: "calc(100% - 20px)",
+              sm: "auto",
+            },
+            maxWidth: {
+              xs: "calc(100% - 20px)",
+              sm: "640px",
+            },
+            backgroundColor: "#202329",
+            border: "1px solid #e69b35",
+            borderRadius: "10px",
+            px: { xs: "12px", sm: "18px" },
+            py: { xs: "9px", sm: "11px" },
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            boxShadow: "0 10px 32px rgba(0,0,0,0.65)",
+          }}
+        >
+          <Box
+            sx={{
+              width: "9px",
+              height: "9px",
+              borderRadius: "50%",
+              backgroundColor: "#e69b35",
+              flexShrink: 0,
+              animation: "pulse 1.5s infinite",
+              "@keyframes pulse": {
+                "0%": { opacity: 0.3 },
+                "50%": { opacity: 1 },
+                "100%": { opacity: 0.3 },
+              },
+            }}
+          />
+          <Typography
+            sx={{
+              fontSize: { xs: "11px", sm: "12px" },
+              lineHeight: 1.4,
+              fontWeight: 700,
+              color: "#ffffff",
+            }}
+          >
+            {idleProcessingNotice}
+          </Typography>
+        </Box>
+      )}
+
       {/* High Demand / Reconnecting Notification */}
       {reconnecting && (
         <Box
@@ -1546,36 +1824,68 @@ Begin the interview now with a brief professional introduction and Question 1.`,
                 sx={{
                   display: "flex",
                   alignItems: "center",
+                  justifyContent: "space-between",
                   gap: "6px",
                   mb: "3px",
                   flexShrink: 0,
                 }}
               >
-                <MicIcon
-                  sx={{ fontSize: "13px", color: "#5ecb8a" }}
-                />
-                <Typography
-                  sx={{
-                    fontSize: "9px",
-                    color: "#858b98",
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  You
-                </Typography>
-                {isSavingTurn && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <MicIcon
+                    sx={{ fontSize: "13px", color: "#5ecb8a" }}
+                  />
                   <Typography
                     sx={{
                       fontSize: "9px",
-                      color: "#7f8794",
-                      ml: "auto",
+                      color: "#858b98",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
                     }}
                   >
-                    Saving...
+                    You
                   </Typography>
-                )}
+                </Box>
+
+                <Box sx={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  {candidateCountdown !== null && candidateCountdown >= 0 && !geminiSpeakingRef.current && (
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        px: "6px",
+                        py: "1px",
+                        borderRadius: "4px",
+                        backgroundColor:
+                          candidateCountdown <= 5
+                            ? "rgba(239, 68, 68, 0.2)"
+                            : "rgba(230, 155, 53, 0.2)",
+                        border: "1px solid",
+                        borderColor:
+                          candidateCountdown <= 5 ? "#ef4444" : "#e69b35",
+                        color:
+                          candidateCountdown <= 5 ? "#ff8080" : "#f5b041",
+                      }}
+                    >
+                      <AccessTimeIcon sx={{ fontSize: "11px" }} />
+                      <Typography sx={{ fontSize: "9px", fontWeight: 800 }}>
+                        {candidateCountdown}s to answer
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {isSavingTurn && (
+                    <Typography
+                      sx={{
+                        fontSize: "9px",
+                        color: "#7f8794",
+                      }}
+                    >
+                      Saving...
+                    </Typography>
+                  )}
+                </Box>
               </Box>
 
               <Box
@@ -1950,18 +2260,53 @@ Begin the interview now with a brief professional introduction and Question 1.`,
                 scrollbarWidth: "thin",
               }}
             >
-              <Typography
+              <Box
                 sx={{
-                  fontSize: "8px",
-                  color: "#7f8794",
-                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                   mb: "4px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
                 }}
               >
-                You
-              </Typography>
+                <Typography
+                  sx={{
+                    fontSize: "8px",
+                    color: "#7f8794",
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  You
+                </Typography>
+
+                {candidateCountdown !== null && candidateCountdown >= 0 && !geminiSpeakingRef.current && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      px: "7px",
+                      py: "2px",
+                      borderRadius: "5px",
+                      backgroundColor:
+                        candidateCountdown <= 5
+                          ? "rgba(239, 68, 68, 0.2)"
+                          : "rgba(230, 155, 53, 0.2)",
+                      border: "1px solid",
+                      borderColor:
+                        candidateCountdown <= 5 ? "#ef4444" : "#e69b35",
+                      color:
+                        candidateCountdown <= 5 ? "#ff8080" : "#f5b041",
+                    }}
+                  >
+                    <AccessTimeIcon sx={{ fontSize: "12px" }} />
+                    <Typography sx={{ fontSize: "10px", fontWeight: 800 }}>
+                      {candidateCountdown}s to answer
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
 
               <Typography
                 sx={{
@@ -2010,11 +2355,15 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       <Box
         sx={{
           minHeight: {
-            xs: "58px",
+            xs: "auto",
             sm: "68px",
           },
-          px: { xs: "10px", sm: "18px" },
+          px: { xs: "8px", sm: "18px" },
           py: { xs: "8px", sm: "10px" },
+          width: "100%",
+          maxWidth: "100%",
+          boxSizing: "border-box",
+          overflow: "hidden",
           borderTop: "1px solid #242830",
           backgroundColor: "#17191e",
           display: "flex",
@@ -2031,16 +2380,33 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       >
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
+            display: {
+              xs: "grid",
+              sm: "flex",
+            },
+            gridTemplateColumns: {
+              xs: "repeat(4, minmax(0, 1fr))",
+              sm: "none",
+            },
+            rowGap: {
+              xs: "6px",
+              sm: "0px",
+            },
+            columnGap: {
+              xs: "6px",
+              sm: "0px",
+            },
             gap: {
-              xs: "8px",
               sm: "12px",
             },
+            alignItems: "center",
             width: {
               xs: "100%",
               sm: "auto",
             },
+            maxWidth: "100%",
+            boxSizing: "border-box",
+            minWidth: 0,
             justifyContent: "center",
           }}
         >
@@ -2049,8 +2415,11 @@ Begin the interview now with a brief professional introduction and Question 1.`,
             onClick={handleToggleMic}
             aria-label={micEnabled ? "Mute microphone" : "Unmute microphone"}
             sx={{
-              width: { xs: "42px", sm: "44px" },
-              height: { xs: "42px", sm: "44px" },
+              gridColumn: { xs: "1", sm: "auto" },
+              width: { xs: "100%", sm: "44px" },
+              height: { xs: "40px", sm: "44px" },
+              minWidth: 0,
+              borderRadius: { xs: "9px", sm: "50%" },
               backgroundColor: micEnabled ? "#252932" : "#a8323e",
               color: "#ffffff",
               border: "1px solid",
@@ -2072,8 +2441,11 @@ Begin the interview now with a brief professional introduction and Question 1.`,
             onClick={handleToggleCamera}
             aria-label={cameraEnabled ? "Turn off camera" : "Turn on camera"}
             sx={{
-              width: { xs: "42px", sm: "44px" },
-              height: { xs: "42px", sm: "44px" },
+              gridColumn: { xs: "2", sm: "auto" },
+              width: { xs: "100%", sm: "44px" },
+              height: { xs: "40px", sm: "44px" },
+              minWidth: 0,
+              borderRadius: { xs: "9px", sm: "50%" },
               backgroundColor: cameraEnabled ? "#252932" : "#a8323e",
               color: "#ffffff",
               border: "1px solid",
@@ -2095,8 +2467,11 @@ Begin the interview now with a brief professional introduction and Question 1.`,
             onClick={handleToggleSpeaker}
             aria-label={speakerEnabled ? "Mute speaker" : "Unmute speaker"}
             sx={{
-              width: { xs: "42px", sm: "44px" },
-              height: { xs: "42px", sm: "44px" },
+              gridColumn: { xs: "3", sm: "auto" },
+              width: { xs: "100%", sm: "44px" },
+              height: { xs: "40px", sm: "44px" },
+              minWidth: 0,
+              borderRadius: { xs: "9px", sm: "50%" },
               backgroundColor: "#252932",
               color: "#ffffff",
               border: "1px solid #343944",
@@ -2116,8 +2491,11 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           <IconButton
             aria-label="More options"
             sx={{
-              width: { xs: "42px", sm: "44px" },
-              height: { xs: "42px", sm: "44px" },
+              gridColumn: { xs: "4", sm: "auto" },
+              width: { xs: "100%", sm: "44px" },
+              height: { xs: "40px", sm: "44px" },
+              minWidth: 0,
+              borderRadius: { xs: "9px", sm: "50%" },
               backgroundColor: "#252932",
               color: "#ffffff",
               border: "1px solid #343944",
@@ -2128,6 +2506,43 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           >
             <MoreHorizIcon sx={{ fontSize: "20px" }} />
           </IconButton>
+
+          {/* Leave Interview Button */}
+          <Button
+            onClick={handleLeaveInterview}
+            disabled={isCompletingInterview}
+            startIcon={
+              <LogoutIcon
+                sx={{
+                  fontSize: "17px !important",
+                }}
+              />
+            }
+            sx={{
+              gridColumn: { xs: "span 2", sm: "auto" },
+              width: { xs: "100%", sm: "auto" },
+              height: { xs: "40px", sm: "44px" },
+              minWidth: 0,
+              px: { xs: "8px", sm: "16px" },
+              ml: { xs: "0px", sm: "6px" },
+              borderRadius: "9px",
+              backgroundColor: "#252932",
+              color: "#dce0e8",
+              border: "1px solid #343944",
+              textTransform: "none",
+              fontFamily: '"Manrope", sans-serif',
+              fontSize: { xs: "12px", sm: "12px" },
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              "&:hover": {
+                backgroundColor: "#2f3440",
+                borderColor: "#404654",
+                color: "#ffffff",
+              },
+            }}
+          >
+            Leave Interview
+          </Button>
 
           {/* End Interview Button */}
           <Button
@@ -2141,17 +2556,20 @@ Begin the interview now with a brief professional introduction and Question 1.`,
               />
             }
             sx={{
-              height: { xs: "42px", sm: "44px" },
-              minWidth: { xs: "68px", sm: "90px" },
-              px: { xs: "14px", sm: "18px" },
-              ml: { xs: "2px", sm: "6px" },
+              gridColumn: { xs: "span 2", sm: "auto" },
+              width: { xs: "100%", sm: "auto" },
+              height: { xs: "40px", sm: "44px" },
+              minWidth: 0,
+              px: { xs: "8px", sm: "18px" },
+              ml: { xs: "0px", sm: "6px" },
               borderRadius: "9px",
               backgroundColor: "#c53b48",
               color: "#ffffff",
               textTransform: "none",
               fontFamily: '"Manrope", sans-serif',
-              fontSize: "12px",
+              fontSize: { xs: "12px", sm: "12px" },
               fontWeight: 800,
+              whiteSpace: "nowrap",
               boxShadow: "0 2px 8px rgba(197, 59, 72, 0.3)",
               "&:hover": {
                 backgroundColor: "#ad303c",
@@ -2179,6 +2597,310 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           InterviewReady AI
         </Typography>
       </Box>
+
+      {/* Confirmation Modal: Leave Interview (Save & Resume Later) */}
+      <Dialog
+        open={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              backgroundColor: "#1c1f26",
+              color: "#ffffff",
+              borderRadius: "16px",
+              border: "1px solid #2d3340",
+              maxWidth: "460px",
+              p: 1,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.8)",
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, pt: 2, px: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+              borderRadius: "10px",
+              backgroundColor: "rgba(59, 130, 246, 0.15)",
+              color: "#3b82f6",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <LogoutIcon sx={{ fontSize: 22 }} />
+          </Box>
+          <Typography sx={{ fontSize: "17px", fontWeight: 800, color: "#ffffff" }}>
+            Leave this interview?
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent sx={{ px: 3, py: 1.5 }}>
+          <Typography sx={{ fontSize: "14px", color: "#d1d5db", lineHeight: 1.6, fontWeight: 500 }}>
+            Your progress will be saved and you can continue this interview later.
+          </Typography>
+
+          <Box
+            sx={{
+              mt: 2,
+              p: 1.8,
+              borderRadius: "10px",
+              backgroundColor: "#242934",
+              border: "1px solid #333a4a",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography sx={{ fontSize: "12px", color: "#9ca3af" }}>
+              Saved progress:
+            </Typography>
+            <Typography sx={{ fontSize: "13px", fontWeight: 800, color: "#60a5fa" }}>
+              {candidateAnswerCountRef.current} / {totalQuestionsRef.current || 20} answered
+            </Typography>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1.5, gap: 1.2, justifyContent: "flex-end" }}>
+          <Button
+            onClick={() => setShowLeaveModal(false)}
+            variant="contained"
+            sx={{
+              backgroundColor: "#2563eb",
+              textTransform: "none",
+              fontWeight: 800,
+              fontSize: "13px",
+              px: 2.5,
+              py: 0.9,
+              borderRadius: "8px",
+              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.35)",
+              "&:hover": {
+                backgroundColor: "#1d4ed8",
+              },
+            }}
+          >
+            Continue Interview
+          </Button>
+
+          <Button
+            onClick={handleConfirmLeave}
+            variant="outlined"
+            sx={{
+              color: "#9ca3af",
+              borderColor: "#374151",
+              textTransform: "none",
+              fontWeight: 700,
+              fontSize: "13px",
+              px: 2,
+              py: 0.9,
+              borderRadius: "8px",
+              "&:hover": {
+                backgroundColor: "#242934",
+                borderColor: "#4b5563",
+                color: "#ffffff",
+              },
+            }}
+          >
+            Leave Interview
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmation Modal: End Interview Below 50% Threshold */}
+      <Dialog
+        open={showEndEarlyModal}
+        onClose={() => setShowEndEarlyModal(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              backgroundColor: "#1c1f26",
+              color: "#ffffff",
+              borderRadius: "16px",
+              border: "1px solid #2d3340",
+              maxWidth: "460px",
+              p: 1,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.8)",
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, pt: 2, px: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+              borderRadius: "10px",
+              backgroundColor: "rgba(230, 155, 53, 0.15)",
+              color: "#e69b35",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <WarningAmberRoundedIcon sx={{ fontSize: 22 }} />
+          </Box>
+          <Typography sx={{ fontSize: "17px", fontWeight: 800, color: "#ffffff" }}>
+            End Interview Early?
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent sx={{ px: 3, py: 1.5 }}>
+          <Typography sx={{ fontSize: "14px", color: "#d1d5db", lineHeight: 1.6, fontWeight: 500 }}>
+            Your performance report cannot be generated yet. Please answer at least 50% of the interview questions.
+          </Typography>
+
+          <Box
+            sx={{
+              mt: 2,
+              p: 1.8,
+              borderRadius: "10px",
+              backgroundColor: "#242934",
+              border: "1px solid #333a4a",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography sx={{ fontSize: "12px", color: "#9ca3af" }}>
+              Progress completed:
+            </Typography>
+            <Typography sx={{ fontSize: "13px", fontWeight: 800, color: "#e69b35" }}>
+              {candidateAnswerCountRef.current} / {totalQuestionsRef.current || 20} answered ({Math.ceil((totalQuestionsRef.current || 20) * 0.5)} required)
+            </Typography>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1.5, gap: 1.2, justifyContent: "flex-end" }}>
+          <Button
+            onClick={handleConfirmEndAnyway}
+            sx={{
+              color: "#ef4444",
+              borderColor: "rgba(239, 68, 68, 0.4)",
+              textTransform: "none",
+              fontWeight: 700,
+              fontSize: "13px",
+              px: 2,
+              py: 0.9,
+              borderRadius: "8px",
+              "&:hover": {
+                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                borderColor: "#ef4444",
+              },
+            }}
+            variant="outlined"
+          >
+            End Interview Anyway
+          </Button>
+
+          <Button
+            onClick={() => setShowEndEarlyModal(false)}
+            variant="contained"
+            sx={{
+              backgroundColor: "#2563eb",
+              textTransform: "none",
+              fontWeight: 800,
+              fontSize: "13px",
+              px: 2.5,
+              py: 0.9,
+              borderRadius: "8px",
+              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.35)",
+              "&:hover": {
+                backgroundColor: "#1d4ed8",
+              },
+            }}
+          >
+            Continue Interview
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal: Gemini High Demand / Unrecoverable Outage Modal */}
+      <Dialog
+        open={showHighDemandModal}
+        onClose={() => {}}
+        slotProps={{
+          paper: {
+            sx: {
+              backgroundColor: "#1c1f26",
+              color: "#ffffff",
+              borderRadius: "16px",
+              border: "1px solid #2d3340",
+              maxWidth: "460px",
+              p: 1,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.8)",
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, pt: 2, px: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+              borderRadius: "10px",
+              backgroundColor: "rgba(59, 130, 246, 0.15)",
+              color: "#3b82f6",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <CloudQueueIcon sx={{ fontSize: 22 }} />
+          </Box>
+          <Typography sx={{ fontSize: "17px", fontWeight: 800, color: "#ffffff" }}>
+            High Service Demand
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent sx={{ px: 3, py: 1.5 }}>
+          <Typography sx={{ fontSize: "14px", color: "#d1d5db", lineHeight: 1.6, fontWeight: 500 }}>
+            Sorry for the inconvenience. Gemini is currently experiencing high demand. Please continue this interview after 5 minutes.
+          </Typography>
+
+          <Box
+            sx={{
+              mt: 2,
+              p: 1.8,
+              borderRadius: "10px",
+              backgroundColor: "#242934",
+              border: "1px solid #333a4a",
+            }}
+          >
+            <Typography sx={{ fontSize: "12px", color: "#9ca3af", lineHeight: 1.5 }}>
+              Your answered questions and interview progress have been safely saved. You can resume anytime from your Dashboard.
+            </Typography>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1.5, justifyContent: "flex-end" }}>
+          <Button
+            onClick={() => {
+              setShowHighDemandModal(false);
+              navigate("/dashboard");
+            }}
+            variant="contained"
+            sx={{
+              backgroundColor: "#2563eb",
+              textTransform: "none",
+              fontWeight: 800,
+              fontSize: "13px",
+              px: 3,
+              py: 1,
+              borderRadius: "8px",
+              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.35)",
+              "&:hover": {
+                backgroundColor: "#1d4ed8",
+              },
+            }}
+          >
+            Return to Dashboard
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

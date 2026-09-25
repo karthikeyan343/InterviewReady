@@ -36,7 +36,7 @@ export interface SaveLiveConversationTurnResult {
 export interface CompleteLiveInterviewResult {
   completed: boolean;
   reportGenerated: boolean;
-  reportStatus: "none" | "preparing" | "ready" | "failed";
+  reportStatus: "NotRequired" | "Processing" | "Completed" | "Failed" | "none" | "preparing" | "ready" | "failed";
   reportId?: mongoose.Types.ObjectId | null;
   answeredCount: number;
   questionLimit: number;
@@ -51,6 +51,17 @@ export interface CompleteLiveInterviewResult {
   weaknesses?: string[];
   suggestions?: string[];
   summary?: string;
+}
+
+export interface ReportStatusResult {
+  status: "NotRequired" | "Processing" | "Completed" | "Failed";
+  reportId?: mongoose.Types.ObjectId | null;
+  overallScore?: number | null;
+  error?: string | null;
+  errorMessage?: string | null;
+  answeredCount?: number;
+  minimumRequiredAnswers?: number;
+  message?: string;
 }
 
 export interface LiveInterviewSessionResult {
@@ -68,6 +79,7 @@ export interface LiveInterviewSessionResult {
     totalQuestions: number;
     currentQuestion: number;
     answeredCount: number;
+    minimumRequiredAnswers: number;
   };
   turns: Array<{
     sequence: number;
@@ -281,6 +293,12 @@ export const saveLiveConversationTurn = async ({
   };
 };
 
+const isAnsweredCandidateTurn = (turn: { speaker: string; text: string }): boolean => {
+  if (turn.speaker !== "candidate") return false;
+  const text = turn.text.trim().toLowerCase();
+  return text.length > 0 && !text.startsWith("[skipped") && !text.startsWith("[no answer");
+};
+
 export const getLiveInterviewSession = async ({
   interviewId,
   userId,
@@ -307,9 +325,7 @@ export const getLiveInterviewSession = async ({
     (turn) => turn.speaker === "interviewer" && turn.isQuestion === true
   );
 
-  const candidateTurns = turns.filter(
-    (turn) => turn.speaker === "candidate" && turn.text.trim().length > 0
-  );
+  const candidateAnsweredTurns = turns.filter(isAnsweredCandidateTurn);
 
   const interviewerTurns = turns.filter((t) => t.speaker === "interviewer");
   const candidateTurnList = turns.filter((t) => t.speaker === "candidate");
@@ -331,7 +347,8 @@ export const getLiveInterviewSession = async ({
     stats: {
       totalQuestions: questionLimit,
       currentQuestion: questionTurns.length,
-      answeredCount: candidateTurns.length,
+      answeredCount: candidateAnsweredTurns.length,
+      minimumRequiredAnswers: Math.ceil(questionLimit * 0.5),
     },
     turns: turns.map((t) => ({
       sequence: t.sequence,
@@ -343,6 +360,123 @@ export const getLiveInterviewSession = async ({
     lastInterviewerTurn: lastInterviewer?.text || null,
     lastCandidateTurn: lastCandidate?.text || null,
   };
+};
+
+const activeReportGenerations = new Set<string>();
+
+export const executeAsyncReportGeneration = async (
+  interviewId: string,
+  userId: string
+): Promise<void> => {
+  const lockKey = interviewId.toString();
+
+  if (activeReportGenerations.has(lockKey)) {
+    console.log(
+      `[Report Worker] Generation already active for interview ${interviewId}. Skipping duplicate spawn.`
+    );
+    return;
+  }
+
+  activeReportGenerations.add(lockKey);
+
+  try {
+    const interviewObjectId = validateObjectId(interviewId, "interview ID");
+
+    const interview = await Interview.findOne({
+      _id: interviewObjectId,
+      userId,
+    });
+
+    if (!interview) {
+      console.error(
+        `[Report Worker] Interview ${interviewId} not found for report generation.`
+      );
+      return;
+    }
+
+    const turns = await LiveInterviewTurn.find({
+      interviewId: interview._id,
+    }).sort({
+      sequence: 1,
+    });
+
+    const conversation = turns
+      .filter((turn) => turn.text.trim().length > 0)
+      .map((turn) => ({
+        sequence: turn.sequence,
+        speaker: turn.speaker,
+        text: turn.text.trim(),
+        timestamp: turn.timestamp,
+      }));
+
+    if (conversation.length === 0) {
+      console.warn(
+        `[Report Worker] No conversation turns found for interview ${interviewId}`
+      );
+      await InterviewReport.findOneAndUpdate(
+        { interviewId: interview._id, userId },
+        {
+          status: "Failed",
+          summary: "No conversation turns were recorded for this interview.",
+          errorMessage: "Zero turns recorded in conversation.",
+        },
+        { upsert: true }
+      );
+      return;
+    }
+
+    console.log(
+      `[Report Worker] Generating AI report for interview ${interviewId} (${conversation.length} turns, Role: ${interview.role}, Type: ${interview.interviewType}, Difficulty: ${interview.difficulty})...`
+    );
+
+    const generatedReport = await generateInterviewReportWithGemini({
+      role: interview.role,
+      interviewType: interview.interviewType,
+      difficulty: interview.difficulty,
+      conversation,
+    });
+
+    await InterviewReport.findOneAndUpdate(
+      { interviewId: interview._id, userId },
+      {
+        overallScore: generatedReport.overallScore,
+        technicalScore: generatedReport.technicalScore,
+        communicationScore: generatedReport.communicationScore,
+        problemSolvingScore: generatedReport.problemSolvingScore,
+        strengths: generatedReport.strengths,
+        weaknesses: generatedReport.weaknesses,
+        suggestions: generatedReport.suggestions,
+        summary: generatedReport.summary,
+        status: "Completed",
+        errorMessage: null,
+      },
+      { upsert: true, new: true }
+    );
+
+    console.log(
+      `[Report Worker] Successfully generated and persisted report for interview ${interviewId} (Overall Score: ${generatedReport.overallScore}%)`
+    );
+  } catch (error: any) {
+    const providerErrorMessage =
+      error instanceof Error ? error.message : String(error);
+
+    console.error(
+      `[Report Worker] Report generation failed for interview ${interviewId}:`,
+      error
+    );
+
+    await InterviewReport.findOneAndUpdate(
+      { interviewId: new mongoose.Types.ObjectId(interviewId), userId },
+      {
+        status: "Failed",
+        summary: "Failed to generate report due to AI service error.",
+        errorMessage: providerErrorMessage,
+      },
+      { upsert: true }
+    );
+  } finally {
+    activeReportGenerations.delete(lockKey);
+  }
 };
 
 export const completeLiveInterview = async ({
@@ -363,86 +497,43 @@ export const completeLiveInterview = async ({
 
   const minimumRequiredAnswers = Math.ceil(questionLimit * 0.5);
 
-  // Idempotency check: if interview already completed
-  if (interview.status === "Completed") {
-    const existingReport = await InterviewReport.findOne({
-      interviewId: interview._id,
-      userId,
-    });
-
-    const answeredCount = await LiveInterviewTurn.countDocuments({
-      interviewId: interview._id,
-      speaker: "candidate",
-      text: { $ne: "" },
-    });
-
-    return {
-      completed: true,
-      reportGenerated: !!existingReport,
-      reportStatus: (existingReport?.status as any) || (existingReport ? "ready" : "none"),
-      reportId: existingReport?._id || null,
-      id: existingReport?._id || null,
-      overallScore: existingReport?.overallScore ?? 0,
-      technicalScore: existingReport?.technicalScore ?? 0,
-      communicationScore: existingReport?.communicationScore ?? 0,
-      problemSolvingScore: existingReport?.problemSolvingScore ?? 0,
-      strengths: existingReport?.strengths || [],
-      weaknesses: existingReport?.weaknesses || [],
-      suggestions: existingReport?.suggestions || [],
-      summary: existingReport?.summary || "",
-      answeredCount,
-      questionLimit,
-      minimumRequiredAnswers,
-      message: "Interview was already completed.",
-    };
-  }
-
-  // Mark interview completed in database
-  interview.status = "Completed";
-  interview.endedAt = new Date();
-  await interview.save();
-
   const turns = await LiveInterviewTurn.find({
     interviewId: interview._id,
   }).sort({
     sequence: 1,
   });
 
-  const candidateTurns = turns.filter(
-    (turn) => turn.speaker === "candidate" && turn.text.trim().length > 0
-  );
+  const candidateTurns = turns.filter(isAnsweredCandidateTurn);
 
   const answeredCount = candidateTurns.length;
 
+  // Mark interview completed in database if not already completed
+  if (interview.status !== "Completed") {
+    interview.status = "Completed";
+    interview.endedAt = new Date();
+    await interview.save();
+  }
+
   console.log(
-    `[Live Interview] Completed interview ${interviewId}. Candidate answered ${answeredCount}/${questionLimit} questions (minimum: ${minimumRequiredAnswers})`
+    `[Live Interview] Completed interview ${interviewId}. Candidate answered ${answeredCount}/${questionLimit} questions (minimum for report: ${minimumRequiredAnswers})`
   );
 
-  // If candidate answers are below 50% threshold, safely close without generating report
+  // 50% Threshold Check: If below threshold, no report is required
   if (answeredCount < minimumRequiredAnswers) {
     return {
       completed: true,
       reportGenerated: false,
-      reportStatus: "none",
+      reportStatus: "NotRequired",
       reportId: null,
       id: null,
       answeredCount,
       questionLimit,
       minimumRequiredAnswers,
-      message: `Interview closed. Answered ${answeredCount} of required ${minimumRequiredAnswers} questions for report generation.`,
+      message: `Interview closed. Performance report not required (answered ${answeredCount} of required ${minimumRequiredAnswers} questions).`,
     };
   }
 
-  // At or above 50% threshold: check/create report in preparing status and trigger async generation
-  const conversation = turns
-    .filter((turn) => turn.text.trim().length > 0)
-    .map((turn) => ({
-      sequence: turn.sequence,
-      speaker: turn.speaker,
-      text: turn.text,
-      timestamp: turn.timestamp,
-    }));
-
+  // At or above 50% threshold: eligible for report generation
   let report = await InterviewReport.findOne({
     interviewId: interview._id,
     userId,
@@ -462,65 +553,36 @@ export const completeLiveInterview = async ({
       weaknesses: [],
       suggestions: [],
       summary: "Performance report is being prepared...",
-      status: "preparing",
+      status: "Processing",
     });
     shouldTriggerAsync = true;
-  } else if (report.status === "preparing") {
+  } else if (
+    report.status === "Processing" ||
+    report.status === "preparing" ||
+    report.status === "Failed" ||
+    report.status === "failed"
+  ) {
+    report.status = "Processing";
+    report.summary = "Performance report is being prepared...";
+    report.errorMessage = undefined;
+    await report.save();
     shouldTriggerAsync = true;
   }
 
   if (shouldTriggerAsync) {
-    const reportId = report._id;
-    const role = interview.role;
-    const interviewType = interview.interviewType;
-    const difficulty = interview.difficulty;
-
-    setImmediate(async () => {
-      try {
-        console.log(
-          `[Live Interview] Asynchronously generating report for interview ${interviewId}...`
-        );
-
-        const generatedReport = await generateInterviewReportWithGemini({
-          role,
-          interviewType,
-          difficulty,
-          conversation,
-        });
-
-        await InterviewReport.findByIdAndUpdate(reportId, {
-          overallScore: generatedReport.overallScore,
-          technicalScore: generatedReport.technicalScore,
-          communicationScore: generatedReport.communicationScore,
-          problemSolvingScore: generatedReport.problemSolvingScore,
-          strengths: generatedReport.strengths,
-          weaknesses: generatedReport.weaknesses,
-          suggestions: generatedReport.suggestions,
-          summary: generatedReport.summary,
-          status: "ready",
-        });
-
-        console.log(
-          `[Live Interview] Asynchronous report generated successfully for interview ${interviewId}`
-        );
-      } catch (reportError) {
-        console.error(
-          `[Live Interview] Asynchronous report generation error for interview ${interviewId}:`,
-          reportError
-        );
-
-        await InterviewReport.findByIdAndUpdate(reportId, {
-          status: "failed",
-          summary: "Failed to generate report due to AI service error.",
-        });
-      }
+    const rawInterviewId = interview._id.toString();
+    setImmediate(() => {
+      void executeAsyncReportGeneration(rawInterviewId, userId);
     });
   }
 
+  const isAlreadyCompleted =
+    report.status === "Completed" || report.status === "ready";
+
   return {
     completed: true,
-    reportGenerated: true,
-    reportStatus: "preparing",
+    reportGenerated: isAlreadyCompleted,
+    reportStatus: (report.status as any) || "Processing",
     reportId: report._id,
     id: report._id,
     overallScore: report.overallScore,
@@ -534,6 +596,186 @@ export const completeLiveInterview = async ({
     answeredCount,
     questionLimit,
     minimumRequiredAnswers,
-    message: "Interview completed. Performance report is being prepared in the background.",
+    message: isAlreadyCompleted
+      ? "Interview completed and report is ready."
+      : "Interview completed. Performance report is being prepared asynchronously in the background.",
+  };
+};
+
+export const retryInterviewReportGeneration = async ({
+  interviewId,
+  userId,
+}: {
+  interviewId: string;
+  userId: string;
+}): Promise<ReportStatusResult> => {
+  const interview = await getInterview({
+    interviewId,
+    userId,
+  });
+
+  if (interview.status !== "Completed") {
+    throw new Error("Interview must be completed before generating a report.");
+  }
+
+  const questionLimit = getInterviewQuestionLimit(
+    interview.difficulty as "Easy" | "Medium" | "Hard"
+  );
+
+  const minimumRequiredAnswers = Math.ceil(questionLimit * 0.5);
+
+  const turns = await LiveInterviewTurn.find({
+    interviewId: interview._id,
+  }).sort({
+    sequence: 1,
+  });
+
+  const candidateTurns = turns.filter(isAnsweredCandidateTurn);
+
+  const answeredCount = candidateTurns.length;
+
+  if (answeredCount < minimumRequiredAnswers) {
+    throw new Error(
+      `Report generation is not eligible. Candidate answered ${answeredCount} of required ${minimumRequiredAnswers} questions.`
+    );
+  }
+
+  let report = await InterviewReport.findOne({
+    interviewId: interview._id,
+    userId,
+  });
+
+  if (report && (report.status === "Completed" || report.status === "ready")) {
+    return {
+      status: "Completed",
+      reportId: report._id,
+      overallScore: report.overallScore,
+      answeredCount,
+      minimumRequiredAnswers,
+      message: "Report is already completed.",
+    };
+  }
+
+  if (report && (report.status === "Processing" || report.status === "preparing")) {
+    return {
+      status: "Processing",
+      reportId: report._id,
+      answeredCount,
+      minimumRequiredAnswers,
+      message: "Report generation is already processing.",
+    };
+  }
+
+  if (!report) {
+    report = await InterviewReport.create({
+      interviewId: interview._id,
+      userId: new mongoose.Types.ObjectId(userId),
+      overallScore: 0,
+      technicalScore: 0,
+      communicationScore: 0,
+      problemSolvingScore: 0,
+      strengths: [],
+      weaknesses: [],
+      suggestions: [],
+      summary: "Performance report is being prepared...",
+      status: "Processing",
+    });
+  } else {
+    report.status = "Processing";
+    report.summary = "Performance report is being prepared...";
+    report.errorMessage = undefined;
+    await report.save();
+  }
+
+  const rawInterviewId = interview._id.toString();
+  setImmediate(() => {
+    void executeAsyncReportGeneration(rawInterviewId, userId);
+  });
+
+  return {
+    status: "Processing",
+    reportId: report._id,
+    answeredCount,
+    minimumRequiredAnswers,
+    message: "Report generation retry started.",
+  };
+};
+
+export const getInterviewReportStatus = async ({
+  interviewId,
+  userId,
+}: {
+  interviewId: string;
+  userId: string;
+}): Promise<ReportStatusResult> => {
+  const interview = await getInterview({
+    interviewId,
+    userId,
+  });
+
+  if (interview.status !== "Completed") {
+    return {
+      status: "NotRequired",
+      message: "Interview is not completed yet.",
+    };
+  }
+
+  const questionLimit = getInterviewQuestionLimit(
+    interview.difficulty as "Easy" | "Medium" | "Hard"
+  );
+  const minimumRequiredAnswers = Math.ceil(questionLimit * 0.5);
+
+  const turns = await LiveInterviewTurn.find({
+    interviewId: interview._id,
+  }).sort({
+    sequence: 1,
+  });
+
+  const candidateTurns = turns.filter(isAnsweredCandidateTurn);
+  const answeredCount = candidateTurns.length;
+
+  if (answeredCount < minimumRequiredAnswers) {
+    return {
+      status: "NotRequired",
+      answeredCount,
+      minimumRequiredAnswers,
+      message: "Fewer than 50% of questions were answered.",
+    };
+  }
+
+  const report = await InterviewReport.findOne({
+    interviewId: interview._id,
+    userId,
+  });
+
+  if (!report) {
+    return {
+      status: "NotRequired",
+      answeredCount,
+      minimumRequiredAnswers,
+    };
+  }
+
+  let mappedStatus: "NotRequired" | "Processing" | "Completed" | "Failed" =
+    "Processing";
+
+  if (report.status === "Completed" || report.status === "ready") {
+    mappedStatus = "Completed";
+  } else if (report.status === "Failed" || report.status === "failed") {
+    mappedStatus = "Failed";
+  } else if (report.status === "NotRequired") {
+    mappedStatus = "NotRequired";
+  } else {
+    mappedStatus = "Processing";
+  }
+
+  return {
+    status: mappedStatus,
+    reportId: report._id,
+    overallScore: mappedStatus === "Completed" ? report.overallScore : null,
+    error: mappedStatus === "Failed" ? report.summary : null,
+    errorMessage: mappedStatus === "Failed" ? report.errorMessage : null,
+    answeredCount,
+    minimumRequiredAnswers,
   };
 };

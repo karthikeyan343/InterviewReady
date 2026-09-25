@@ -27,6 +27,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 import logo from "../../../assets/LogoIR.png";
 import { useLocation, useNavigate } from "react-router-dom";
+import { clearAllUserCache } from "../../../services/apiQueries";
 
 interface User {
   id: string;
@@ -103,6 +104,7 @@ const DashboardNavbar: React.FC = () => {
   const handleLogout = () => {
     handleCloseMenu();
 
+    clearAllUserCache();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
 

@@ -142,47 +142,51 @@ export const getDashboardData = async (
       (interview) => interview.status === "Completed"
     ).length;
 
+    const readyReports = reports.filter(
+      (r) => r.status === "ready" || r.status === "Completed"
+    );
+
     const averageScore =
-      reports.length > 0
+      readyReports.length > 0
         ? Math.round(
-            reports.reduce(
+            readyReports.reduce(
               (total, report) =>
                 total + report.overallScore,
               0
-            ) / reports.length
+            ) / readyReports.length
           )
         : 0;
 
     const technicalScore =
-      reports.length > 0
+      readyReports.length > 0
         ? Math.round(
-            reports.reduce(
+            readyReports.reduce(
               (total, report) =>
                 total + report.technicalScore,
               0
-            ) / reports.length
+            ) / readyReports.length
           )
         : 0;
 
     const communicationScore =
-      reports.length > 0
+      readyReports.length > 0
         ? Math.round(
-            reports.reduce(
+            readyReports.reduce(
               (total, report) =>
                 total + report.communicationScore,
               0
-            ) / reports.length
+            ) / readyReports.length
           )
         : 0;
 
     const problemSolvingScore =
-      reports.length > 0
+      readyReports.length > 0
         ? Math.round(
-            reports.reduce(
+            readyReports.reduce(
               (total, report) =>
                 total + report.problemSolvingScore,
               0
-            ) / reports.length
+            ) / readyReports.length
           )
         : 0;
 
@@ -193,6 +197,26 @@ export const getDashboardData = async (
           interview._id.toString()
         );
 
+        let reportStatus: "Processing" | "Completed" | "Failed" | "NotRequired" | "none" =
+          "none";
+
+        if (report) {
+          if (report.status === "ready" || report.status === "Completed") {
+            reportStatus = "Completed";
+          } else if (report.status === "failed" || report.status === "Failed") {
+            reportStatus = "Failed";
+          } else if (report.status === "NotRequired") {
+            reportStatus = "NotRequired";
+          } else {
+            reportStatus = "Processing";
+          }
+        } else if (interview.status === "Completed") {
+          reportStatus = "NotRequired";
+        }
+
+        const isReady =
+          report && (report.status === "ready" || report.status === "Completed");
+
         return {
           id: interview._id,
           role: interview.role,
@@ -202,7 +226,8 @@ export const getDashboardData = async (
           createdAt: interview.createdAt,
           startedAt: interview.startedAt,
           endedAt: interview.endedAt,
-          score: report?.overallScore ?? null,
+          reportStatus,
+          score: isReady ? report.overallScore : null,
         };
       });
 
@@ -370,32 +395,47 @@ export const getAllInterviews = async (
         );
       }
 
+      let reportStatus: "Processing" | "Completed" | "Failed" | "NotRequired" | "none" =
+        "none";
+
+      if (report) {
+        if (report.status === "ready" || report.status === "Completed") {
+          reportStatus = "Completed";
+        } else if (report.status === "failed" || report.status === "Failed") {
+          reportStatus = "Failed";
+        } else if (report.status === "NotRequired") {
+          reportStatus = "NotRequired";
+        } else {
+          reportStatus = "Processing";
+        }
+      } else if (interview.status === "Completed") {
+        reportStatus = "NotRequired";
+      }
+
+      const isReady =
+        report && (report.status === "ready" || report.status === "Completed");
+
       return {
         id: interview._id,
         role: interview.role,
-        interviewType:
-          interview.interviewType,
-        difficulty:
-          interview.difficulty,
+        interviewType: interview.interviewType,
+        difficulty: interview.difficulty,
         status: interview.status,
         createdAt: interview.createdAt,
         startedAt: interview.startedAt,
         endedAt: interview.endedAt,
         questionCount,
         durationMinutes,
-        score:
-          report?.overallScore ?? null,
+        reportStatus,
+        score: isReady ? report.overallScore : null,
         report: report
           ? {
               id: report._id,
-              overallScore:
-                report.overallScore,
-              technicalScore:
-                report.technicalScore,
-              communicationScore:
-                report.communicationScore,
-              problemSolvingScore:
-                report.problemSolvingScore,
+              status: reportStatus,
+              overallScore: report.overallScore,
+              technicalScore: report.technicalScore,
+              communicationScore: report.communicationScore,
+              problemSolvingScore: report.problemSolvingScore,
             }
           : null,
       };

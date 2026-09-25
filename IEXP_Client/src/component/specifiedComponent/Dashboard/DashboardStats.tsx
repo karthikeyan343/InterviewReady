@@ -1,58 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Box, Typography } from "@mui/material";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import CheckCircleOutlineOutlinedIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
-
-interface DashboardStatsData {
-  totalInterviews: number;
-  completedInterviews: number;
-  averageScore: number;
-}
-
-interface DashboardResponse {
-  stats: DashboardStatsData;
-  resume: {
-    uploaded: boolean;
-  };
-}
+import { useDashboardData } from "../../../services/apiQueries";
 
 const DashboardStats: React.FC = () => {
-  const [data, setData] = useState<DashboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const token = localStorage.getItem("token");
-
-        const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/interviews/dashboard`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch dashboard data");
-        }
-
-        const result = await response.json();
-
-        setData(result);
-      } catch (error) {
-        console.error("Dashboard data error:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
+  const { data, isLoading: loading } = useDashboardData();
 
   if (loading) {
     return (

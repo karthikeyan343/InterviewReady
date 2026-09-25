@@ -4,6 +4,7 @@ import AddIcon from "@mui/icons-material/Add";
 import { useNavigate } from "react-router-dom";
 
 import NewInterviewModal from "./NewInterviewModal";
+import { invalidateDashboard, invalidateInterviews } from "../../../services/apiQueries";
 
 interface NewInterviewData {
   role: string;
@@ -84,6 +85,9 @@ const DashboardWelcome: React.FC = () => {
         );
         return;
       }
+
+      invalidateDashboard();
+      invalidateInterviews();
 
       setOpenModal(false);
 
