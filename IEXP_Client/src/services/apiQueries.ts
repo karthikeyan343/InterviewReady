@@ -22,8 +22,9 @@ export interface RecentInterview {
   role: string;
   interviewType: "Technical" | "Behavioral" | "Mixed";
   difficulty: "Easy" | "Medium" | "Hard";
-  status: "Not Started" | "In Progress" | "Completed" | "Abandoned";
+  status: "Not Started" | "In Progress" | "Completed" | "Abandoned" | "Left";
   createdAt: string;
+  updatedAt?: string;
   startedAt?: string;
   endedAt?: string;
   reportStatus?: "none" | "preparing" | "ready" | "failed" | "NotRequired" | "Processing" | "Completed" | "Failed";
@@ -49,8 +50,9 @@ export interface ContinuePracticeData {
   role: string;
   interviewType: "Technical" | "Behavioral" | "Mixed";
   difficulty: "Easy" | "Medium" | "Hard";
-  status: "Not Started" | "In Progress";
+  status: "Not Started" | "In Progress" | "Left";
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface DashboardResponse {
@@ -73,8 +75,9 @@ export interface InterviewItem {
   role: string;
   interviewType: string;
   difficulty: "Easy" | "Medium" | "Hard";
-  status: "Not Started" | "In Progress" | "Completed" | "Abandoned";
+  status: "Not Started" | "In Progress" | "Completed" | "Abandoned" | "Left";
   createdAt: string;
+  updatedAt?: string;
   startedAt?: string;
   endedAt?: string;
   questionCount: number;

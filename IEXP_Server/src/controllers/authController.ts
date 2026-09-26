@@ -32,14 +32,15 @@ export const registerUser = async (
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     const existingUser = await User.findOne({
-      email: normalizedEmail,
+      email: { $regex: new RegExp(`^${escapedEmail}$`, "i") },
     });
 
     if (existingUser) {
       res.status(409).json({
-        message: "User already exists",
+        message: "Email is already registered. Please try with a different email.",
       });
       return;
     }
@@ -85,9 +86,10 @@ export const loginUser = async (
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     const user = await User.findOne({
-      email: normalizedEmail,
+      email: { $regex: new RegExp(`^${escapedEmail}$`, "i") },
     });
 
     if (!user) {
@@ -159,7 +161,8 @@ export const googleLoginUser = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { credential } = req.body;
+    const { credential, flow = "login", mode } = req.body;
+    const isRegister = flow === "register" || mode === "register";
 
     if (!credential) {
       res.status(400).json({
@@ -214,39 +217,23 @@ export const googleLoginUser = async (
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     let user = await User.findOne({
-      googleId,
+      $or: [
+        { googleId },
+        { email: { $regex: new RegExp(`^${escapedEmail}$`, "i") } },
+      ],
     });
 
-    if (!user) {
-      user = await User.findOne({
-        email: normalizedEmail,
-      });
-    }
-
-    if (user) {
-      let shouldSave = false;
-
-      if (!user.googleId) {
-        user.googleId = googleId;
-        shouldSave = true;
+    if (isRegister) {
+      if (user) {
+        res.status(409).json({
+          message: "Email is already registered. Please try with a different email.",
+        });
+        return;
       }
 
-      if (picture && user.avatar !== picture) {
-        user.avatar = picture;
-        shouldSave = true;
-      }
-
-      if (!user.authProvider) {
-        user.authProvider = "google";
-        shouldSave = true;
-      }
-
-      if (shouldSave) {
-        await user.save();
-      }
-    } else {
       user = await User.create({
         name: name?.trim() || normalizedEmail.split("@")[0],
         email: normalizedEmail,
@@ -254,6 +241,37 @@ export const googleLoginUser = async (
         avatar: picture,
         authProvider: "google",
       });
+    } else {
+      if (user) {
+        let shouldSave = false;
+
+        if (!user.googleId) {
+          user.googleId = googleId;
+          shouldSave = true;
+        }
+
+        if (picture && user.avatar !== picture) {
+          user.avatar = picture;
+          shouldSave = true;
+        }
+
+        if (!user.authProvider) {
+          user.authProvider = "google";
+          shouldSave = true;
+        }
+
+        if (shouldSave) {
+          await user.save();
+        }
+      } else {
+        user = await User.create({
+          name: name?.trim() || normalizedEmail.split("@")[0],
+          email: normalizedEmail,
+          googleId,
+          avatar: picture,
+          authProvider: "google",
+        });
+      }
     }
 
     const jwtSecret = process.env.JWT_SECRET;
@@ -275,8 +293,8 @@ export const googleLoginUser = async (
       }
     );
 
-    res.status(200).json({
-      message: "Google login successful",
+    res.status(isRegister ? 201 : 200).json({
+      message: isRegister ? "Google registration successful" : "Google login successful",
       token,
       user: {
         id: user._id,
@@ -286,7 +304,7 @@ export const googleLoginUser = async (
       },
     });
   } catch (error) {
-    console.error("Google login error:", error);
+    console.error("Google auth error:", error);
 
     res.status(401).json({
       message: "Google authentication failed",

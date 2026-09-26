@@ -209,18 +209,6 @@ const DashboardNavbar: React.FC = () => {
                   "&:hover": {
                     color: "#1769e8",
                   },
-                  "&::after": {
-                    content: '""',
-                    position: "absolute",
-                    bottom: 0,
-                    left: "12px",
-                    right: "12px",
-                    height: "2px",
-                    borderRadius: "2px 2px 0 0",
-                    backgroundColor: isActive
-                      ? "#1769e8"
-                      : "transparent",
-                  },
                 }}
               >
                 <Icon

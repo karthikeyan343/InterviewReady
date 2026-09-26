@@ -4,6 +4,7 @@ import ChatOutlinedIcon from "@mui/icons-material/ChatOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
 import TrackChangesOutlinedIcon from "@mui/icons-material/TrackChangesOutlined";
+import featuresBackground from "../../../assets/HeroBgIR1.png";
 
 const features = [
   {
@@ -46,18 +47,43 @@ const FeaturesSection: React.FC = () => {
       component="section"
       id="features"
       sx={{
+        position: "relative",
         width: "100%",
-        backgroundColor: "#ffffff",
+        backgroundImage: `url(${featuresBackground})`,
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
+        backgroundPosition: {
+          xs: "center center",
+          sm: "center center",
+          md: "center center",
+        },
+        fontFamily: '"Manrope", sans-serif',
+        overflow: "hidden",
         py: {
-          xs: 3,
-          sm: 4,
-          md: 5,
+          xs: 5,
+          sm: 6,
+          md: 7,
         },
       }}
     >
+      {/* Background overlay gradient allowing the image to show through clearly */}
+      <Box
+        sx={{
+          position: "absolute",
+          inset: 0,
+          background: {
+            xs: "linear-gradient(180deg, rgba(244, 249, 255, 0.48) 0%, rgba(244, 249, 255, 0.22) 50%, rgba(244, 249, 255, 0.50) 100%)",
+            md: "linear-gradient(180deg, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.55) 100%)",
+          },
+          pointerEvents: "none",
+        }}
+      />
+
       <Container
         maxWidth="lg"
         sx={{
+          position: "relative",
+          zIndex: 1,
           px: {
             xs: 2.5,
             sm: 3,
@@ -78,14 +104,15 @@ const FeaturesSection: React.FC = () => {
         >
           <Typography
             sx={{
+              fontFamily: '"Manrope", sans-serif',
               fontSize: {
-                xs: "13px",
-                sm: "18px",
+                xs: "12px",
+                sm: "14px",
               },
               lineHeight: 1.4,
               fontWeight: 800,
               letterSpacing: "1.8px",
-              color: "#6676d9",
+              color: "#1769e0",
               mb: 0.8,
             }}
           >
@@ -95,15 +122,16 @@ const FeaturesSection: React.FC = () => {
           <Typography
             component="h2"
             sx={{
+              fontFamily: '"Manrope", sans-serif',
               fontSize: {
-                xs: "25px",
-                sm: "29px",
-                md: "32px",
+                xs: "26px",
+                sm: "30px",
+                md: "34px",
               },
               lineHeight: 1.2,
               fontWeight: 800,
               letterSpacing: "-0.6px",
-              color: "#111b3d",
+              color: "#08194D",
               mb: 1,
             }}
           >
@@ -112,20 +140,25 @@ const FeaturesSection: React.FC = () => {
 
           <Typography
             sx={{
+              fontFamily: '"Manrope", sans-serif',
               fontSize: {
-                xs: "12px",
-                sm: "13px",
-                md: "14px",
+                xs: "13px",
+                sm: "14px",
+                md: "15px",
               },
               lineHeight: 1.6,
               fontWeight: 500,
-              color: "#7180a3",
+              color: "#5C6F96",
+              maxWidth: "520px",
+              mx: "auto",
             }}
           >
-            Powerful tools designed to help you practice, improve, and land
-            your dream job.
+            Powerful tools designed to help you practice, improve, and land your
+            dream job.
           </Typography>
         </Box>
+
+        {/* Feature Cards Grid */}
         <Box
           sx={{
             display: "grid",
@@ -145,8 +178,8 @@ const FeaturesSection: React.FC = () => {
               key={feature.title}
               sx={{
                 minHeight: {
-                  xs: "125px",
-                  sm: "128px",
+                  xs: "115px",
+                  sm: "125px",
                   md: "130px",
                 },
                 display: "flex",
@@ -164,15 +197,22 @@ const FeaturesSection: React.FC = () => {
                   xs: 2,
                   sm: 2.2,
                 },
-                border: "1px solid #edf0f6",
-                borderRadius: "8px",
-                backgroundColor: "#ffffff",
-                boxShadow: "0 4px 14px rgba(30, 50, 90, 0.035)",
+                borderRadius: "14px",
+                backgroundColor: {
+                  xs: "rgba(255, 255, 255, 0.72)",
+                  sm: "rgba(255, 255, 255, 0.76)",
+                  md: "rgba(255, 255, 255, 0.80)",
+                },
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                border: "1px solid rgba(255, 255, 255, 0.85)",
+                boxShadow: "0 8px 24px rgba(15, 30, 80, 0.06)",
                 transition: "all 0.25s ease",
                 "&:hover": {
-                  transform: "translateY(-2px)",
-                  boxShadow: "0 8px 22px rgba(30, 50, 90, 0.07)",
-                  borderColor: "#e1e6f1",
+                  transform: "translateY(-3px)",
+                  backgroundColor: "rgba(255, 255, 255, 0.94)",
+                  boxShadow: "0 12px 30px rgba(15, 30, 80, 0.12)",
+                  borderColor: "rgba(20, 104, 242, 0.3)",
                 },
               }}
             >
@@ -189,7 +229,7 @@ const FeaturesSection: React.FC = () => {
                     sm: 48,
                     md: 48,
                   },
-                  borderRadius: "9px",
+                  borderRadius: "10px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -205,17 +245,19 @@ const FeaturesSection: React.FC = () => {
               >
                 {feature.icon}
               </Box>
+
               <Box sx={{ minWidth: 0 }}>
                 <Typography
                   component="h3"
                   sx={{
+                    fontFamily: '"Manrope", sans-serif',
                     fontSize: {
-                      xs: "14px",
-                      sm: "15px",
+                      xs: "15px",
+                      sm: "16px",
                     },
                     lineHeight: 1.35,
                     fontWeight: 800,
-                    color: "#17203f",
+                    color: "#08194D",
                     mb: 0.5,
                   }}
                 >
@@ -224,13 +266,14 @@ const FeaturesSection: React.FC = () => {
 
                 <Typography
                   sx={{
+                    fontFamily: '"Manrope", sans-serif',
                     fontSize: {
-                      xs: "11px",
-                      sm: "12px",
+                      xs: "12px",
+                      sm: "13px",
                     },
                     lineHeight: 1.55,
                     fontWeight: 500,
-                    color: "#7885a4",
+                    color: "#5C6F96",
                     maxWidth: "430px",
                   }}
                 >

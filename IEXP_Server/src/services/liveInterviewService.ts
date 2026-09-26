@@ -148,6 +148,13 @@ export const startLiveInterview = async ({
     console.log(
       `[Live Interview] Interview ${interviewId} started`
     );
+  } else if (interview.status === "Left") {
+    interview.status = "In Progress";
+    await interview.save();
+
+    console.log(
+      `[Live Interview] Interview ${interviewId} resumed from Left status`
+    );
   }
 
   if (interview.status !== "In Progress") {
@@ -777,5 +784,53 @@ export const getInterviewReportStatus = async ({
     errorMessage: mappedStatus === "Failed" ? report.errorMessage : null,
     answeredCount,
     minimumRequiredAnswers,
+  };
+};
+
+export const leaveLiveInterview = async ({
+  interviewId,
+  userId,
+}: {
+  interviewId: string;
+  userId: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  interview: {
+    id: any;
+    role: string;
+    interviewType: string;
+    difficulty: string;
+    status: string;
+    startedAt?: Date;
+    updatedAt: Date;
+  };
+}> => {
+  const interview = await getInterview({
+    interviewId,
+    userId,
+  });
+
+  if (interview.status !== "Completed") {
+    interview.status = "Left";
+    await interview.save();
+
+    console.log(
+      `[Live Interview] Interview ${interviewId} marked as Left`
+    );
+  }
+
+  return {
+    success: true,
+    message: "Interview status updated to Left.",
+    interview: {
+      id: interview._id,
+      role: interview.role,
+      interviewType: interview.interviewType,
+      difficulty: interview.difficulty,
+      status: interview.status,
+      startedAt: interview.startedAt,
+      updatedAt: interview.updatedAt,
+    },
   };
 };

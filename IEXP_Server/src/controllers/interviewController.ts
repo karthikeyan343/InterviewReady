@@ -120,6 +120,7 @@ export const getDashboardData = async (
     const interviews = await Interview.find({
       userId: req.userId,
     }).sort({
+      updatedAt: -1,
       createdAt: -1,
     });
 
@@ -224,6 +225,7 @@ export const getDashboardData = async (
           difficulty: interview.difficulty,
           status: interview.status,
           createdAt: interview.createdAt,
+          updatedAt: interview.updatedAt,
           startedAt: interview.startedAt,
           endedAt: interview.endedAt,
           reportStatus,
@@ -235,6 +237,13 @@ export const getDashboardData = async (
       interviews.find(
         (interview) => interview.status === "In Progress"
       ) || null;
+
+    if (!continuePractice) {
+      continuePractice =
+        interviews.find(
+          (interview) => interview.status === "Left"
+        ) || null;
+    }
 
     if (!continuePractice) {
       continuePractice =
@@ -252,6 +261,7 @@ export const getDashboardData = async (
           difficulty: continuePractice.difficulty,
           status: continuePractice.status,
           createdAt: continuePractice.createdAt,
+          updatedAt: continuePractice.updatedAt,
         }
       : null;
 
@@ -319,6 +329,7 @@ export const getAllInterviews = async (
     const interviews = await Interview.find({
       userId: req.userId,
     }).sort({
+      updatedAt: -1,
       createdAt: -1,
     });
 
@@ -422,6 +433,7 @@ export const getAllInterviews = async (
         difficulty: interview.difficulty,
         status: interview.status,
         createdAt: interview.createdAt,
+        updatedAt: interview.updatedAt,
         startedAt: interview.startedAt,
         endedAt: interview.endedAt,
         questionCount,

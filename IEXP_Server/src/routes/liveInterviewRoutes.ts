@@ -8,6 +8,7 @@ import {
   saveLiveConversationTurnController,
   completeLiveInterviewController,
   getLiveInterviewSessionController,
+  leaveLiveInterviewController,
 } from "../controllers/liveInterviewController.js";
 
 const router = Router();
@@ -40,6 +41,18 @@ router.post(
   "/:id/live/complete",
   protect,
   completeLiveInterviewController
+);
+
+router.post(
+  "/:id/leave",
+  protect,
+  leaveLiveInterviewController
+);
+
+router.post(
+  "/:id/live/leave",
+  protect,
+  leaveLiveInterviewController
 );
 
 export default router;

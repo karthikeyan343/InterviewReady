@@ -190,6 +190,7 @@ const RegistrationForm: React.FC = () => {
           },
           body: JSON.stringify({
             credential,
+            flow: "register",
           }),
         }
       );
@@ -197,7 +198,7 @@ const RegistrationForm: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || "Google sign-up failed.");
+        setError(data.message || "Email is already registered. Please try with a different email.");
         return;
       }
 

@@ -170,7 +170,7 @@ const ContinuePractice: React.FC = () => {
                 py: "4px",
                 borderRadius: "6px",
                 backgroundColor:
-                  practice.status === "In Progress"
+                  practice.status === "In Progress" || practice.status === "Left"
                     ? "#fff5e8"
                     : "#f1f5ff",
               }}
@@ -180,7 +180,7 @@ const ContinuePractice: React.FC = () => {
                   fontSize: "10px",
                   fontWeight: 700,
                   color:
-                    practice.status === "In Progress"
+                    practice.status === "In Progress" || practice.status === "Left"
                       ? "#b86b00"
                       : "#356ae6",
                 }}
@@ -213,7 +213,7 @@ const ContinuePractice: React.FC = () => {
               },
             }}
           >
-            {practice.status === "In Progress"
+            {practice.status === "In Progress" || practice.status === "Left"
               ? "Continue"
               : "Start Interview"}
           </Button>

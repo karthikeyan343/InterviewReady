@@ -152,6 +152,7 @@ const LoginForm: React.FC = () => {
           },
           body: JSON.stringify({
             credential,
+            flow: "login",
           }),
         }
       );

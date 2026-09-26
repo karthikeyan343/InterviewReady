@@ -565,8 +565,25 @@ const InterviewPage: React.FC = () => {
     });
     streamRef.current = null;
 
-    invalidateInterviews();
-    invalidateDashboard();
+    const triggerBackendLeave = async () => {
+      try {
+        await turnSaveQueueRef.current;
+        await fetch(
+          `${getApiBaseUrl()}/interviews/${id}/live/leave`,
+          {
+            method: "POST",
+            headers: getAuthHeaders(),
+          },
+        );
+      } catch (err) {
+        console.warn("[Live Interview] Error during leave call:", err);
+      } finally {
+        invalidateInterviews();
+        invalidateDashboard();
+      }
+    };
+
+    void triggerBackendLeave();
 
     navigate("/dashboard");
   };
@@ -973,7 +990,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           return;
         }
 
-        if (data.interview?.status === "In Progress") {
+        if (data.interview?.status === "In Progress" || data.interview?.status === "Left") {
           console.log("[Live Interview] Resuming active interview session:", data);
           const limit = data.stats?.totalQuestions ?? 20;
           totalQuestionsRef.current = limit;
@@ -1055,7 +1072,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
       let configuredLimit = totalQuestionsRef.current || 20;
 
-      if (!isResume) {
+      if (!isResume || resumeSessionData?.interview?.status === "Left") {
         const liveStartResponse = await fetch(
           `${getApiBaseUrl()}/interviews/${id}/live/start`,
           {
@@ -1072,7 +1089,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           );
         }
 
-        configuredLimit = liveStartData.interview?.questionLimit ?? 20;
+        configuredLimit = liveStartData.interview?.questionLimit ?? configuredLimit;
         totalQuestionsRef.current = configuredLimit;
         setTotalQuestions(configuredLimit);
       }

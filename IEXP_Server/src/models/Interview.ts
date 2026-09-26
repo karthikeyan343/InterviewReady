@@ -6,7 +6,7 @@ export interface IInterview extends Document {
   role: string;
   interviewType: "Technical" | "Behavioral" | "Mixed";
   difficulty: "Easy" | "Medium" | "Hard";
-  status: "Not Started" | "In Progress" | "Completed" | "Abandoned";
+  status: "Not Started" | "In Progress" | "Completed" | "Abandoned" | "Left";
   startedAt?: Date;
   endedAt?: Date;
   createdAt: Date;
@@ -52,6 +52,7 @@ const interviewSchema = new Schema<IInterview>(
         "In Progress",
         "Completed",
         "Abandoned",
+        "Left",
       ],
       default: "Not Started",
     },

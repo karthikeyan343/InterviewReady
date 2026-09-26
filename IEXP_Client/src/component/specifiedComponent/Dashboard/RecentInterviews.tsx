@@ -25,6 +25,7 @@ const RecentInterviews: React.FC = () => {
         };
 
       case "In Progress":
+      case "Left":
         return {
           backgroundColor: "#fff5e8",
           color: "#b86b00",

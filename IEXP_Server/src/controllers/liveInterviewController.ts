@@ -10,6 +10,7 @@ import {
   saveLiveConversationTurn,
   completeLiveInterview,
   getLiveInterviewSession,
+  leaveLiveInterview,
 } from "../services/liveInterviewService.js";
 
 import { getInterviewQuestionLimit } from "../utils/interviewConfig.js";
@@ -66,7 +67,8 @@ export const createLiveInterviewToken = async (
 
     if (
       interview.status !== "Not Started" &&
-      interview.status !== "In Progress"
+      interview.status !== "In Progress" &&
+      interview.status !== "Left"
     ) {
       res.status(400).json({
         message: `Interview cannot start from ${interview.status} status.`,
@@ -646,6 +648,61 @@ export const getLiveInterviewSessionController = async (
       error instanceof Error
         ? error.message
         : "Failed to fetch live interview session.";
+
+    res.status(400).json({
+      message,
+    });
+  }
+};
+
+export const leaveLiveInterviewController = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({
+        message: "Authentication required.",
+      });
+      return;
+    }
+
+    const rawId = req.params.id;
+
+    const interviewId =
+      typeof rawId === "string"
+        ? rawId
+        : Array.isArray(rawId)
+          ? rawId[0]
+          : undefined;
+
+    if (!interviewId) {
+      res.status(400).json({
+        message: "Interview ID is required.",
+      });
+      return;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+      res.status(400).json({
+        message: "Invalid interview ID.",
+      });
+      return;
+    }
+
+    const result = await leaveLiveInterview({
+      interviewId,
+      userId: req.userId,
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("Leave live interview error:", error);
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to leave live interview.";
 
     res.status(400).json({
       message,
