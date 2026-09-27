@@ -139,8 +139,8 @@ const HeroSection = () => {
           >
             <Box
               sx={{
-                width: { xs: "7px", sm: "7px", md: "8px" },
-                height: { xs: "7px", sm: "7px", md: "8px" },
+                width: { xs: "8px", sm: "7px", md: "8px" },
+                height: { xs: "8px", sm: "7px", md: "8px" },
                 borderRadius: "50%",
                 backgroundColor: "#EF4444",
                 boxShadow: "0 0 8px rgba(239, 68, 68, 0.5)",
@@ -167,7 +167,7 @@ const HeroSection = () => {
                 color: "#475569",
                 fontFamily: '"Manrope", sans-serif',
                 fontSize: {
-                  xs: "11px",
+                  xs: "11.2px",
                   sm: "12px",
                   md: "13px",
                 },
