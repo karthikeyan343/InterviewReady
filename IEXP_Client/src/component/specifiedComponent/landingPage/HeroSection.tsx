@@ -112,7 +112,7 @@ const HeroSection = () => {
               alignItems: "center",
               gap: "8px",
               px: { xs: 1.6, sm: 1.8 },
-              py: { xs: 0.7, sm: 0.8 },
+              py: { xs: 1, sm: 0.8 },
               borderRadius: "20px",
               backgroundColor: {
                 xs: "rgba(255, 255, 255, 0.88)",
