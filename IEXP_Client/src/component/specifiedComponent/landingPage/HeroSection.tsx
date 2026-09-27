@@ -16,7 +16,7 @@ const HeroSection = () => {
         display: "flex",
         alignItems: {
           xs: "flex-start",
-          md: "center",
+          md: "flex-start",
         },
 
         backgroundImage: `url(${heroBackground})`,
@@ -92,7 +92,7 @@ const HeroSection = () => {
               xs: "100%",
               sm: "580px",
               md: "570px",
-              lg: "600px",
+              lg: "700px",
             },
             maxWidth: "100%",
             display: "flex",
@@ -101,7 +101,7 @@ const HeroSection = () => {
             pt: {
               xs: 1,
               sm: 2,
-              md: 0,
+              md: 1,
             },
           }}
         >
@@ -116,11 +116,9 @@ const HeroSection = () => {
               borderRadius: "20px",
               backgroundColor: {
                 xs: "rgba(255, 255, 255, 0.88)",
-                sm: "transparent",
               },
               border: {
                 xs: "1px solid rgba(20, 104, 242, 0.16)",
-                sm: "none",
               },
               backdropFilter: { xs: "blur(8px)", sm: "none" },
               WebkitBackdropFilter: { xs: "blur(8px)", sm: "none" },
@@ -128,7 +126,7 @@ const HeroSection = () => {
               mb: {
                 xs: 2.8,
                 sm: 2.5,
-                md: 2,
+                md: 3,
               },
             }}
           >
@@ -162,9 +160,9 @@ const HeroSection = () => {
                 color: "#475569",
                 fontFamily: '"Manrope", sans-serif',
                 fontSize: {
-                  xs: "11.2px",
+                  xs: "11.1px",
                   sm: "12px",
-                  md: "13px",
+                  md: "15px",
                 },
                 fontWeight: 700,
                 letterSpacing: {
@@ -187,7 +185,7 @@ const HeroSection = () => {
                 xs: 3,
                 sm: 0,
                 md: 0,
-                lg: 0,
+                lg: 3,
               },
               color: "#07194D",
               fontFamily: '"Manrope", sans-serif',
@@ -195,7 +193,7 @@ const HeroSection = () => {
                 xs: "40px",
                 sm: "46px",
                 md: "56px",
-                lg: "60px",
+                lg: "65px",
               },
               lineHeight: {
                 xs: 1.12,
@@ -235,9 +233,9 @@ const HeroSection = () => {
             sx={{
               mt: {
                 xs: 1,
-                sm: 0,
-                md: 0,
-                lg: 0,
+                sm: 1,
+                md: 1,
+                lg: 2,
               },
               mb: {
                 xs: 4,
@@ -254,8 +252,8 @@ const HeroSection = () => {
               fontSize: {
                 xs: "17px",
                 sm: "15px",
-                md: "16px",
-                lg: "17px",
+                md: "17px",
+                lg: "20px",
               },
               fontWeight: 700,
               lineHeight: {
@@ -291,7 +289,7 @@ const HeroSection = () => {
                 xs: 2,
                 sm: 0,
                 md: 0,
-                lg: 0,
+                lg: 1,
               },
             }}
           >
@@ -305,20 +303,24 @@ const HeroSection = () => {
                 minWidth: {
                   xs: "210px",
                   sm: "210px",
+                  lg: '250px',
                 },
                 height: {
                   xs: "48px",
                   sm: "52px",
+                  lg: '55px',
                 },
                 px: {
                   xs: 2.5,
                   sm: 3,
+                  lg: '3.5rem',
                 },
                 borderRadius: "8px",
                 fontFamily: '"Manrope", sans-serif',
                 fontSize: {
                   xs: "14px",
                   sm: "15px",
+                  lg: '18px',
                 },
                 fontWeight: 700,
                 letterSpacing: "0.1px",
@@ -353,14 +355,17 @@ const HeroSection = () => {
                 minWidth: {
                   xs: "185px",
                   sm: "185px",
+                  lg: '225px',
                 },
                 height: {
                   xs: "48px",
                   sm: "52px",
+                  lg: '55px',
                 },
                 px: {
                   xs: 2.5,
                   sm: 2.5,
+                  lg: '3rem',
                 },
                 borderRadius: "8px",
                 borderColor: {
@@ -376,6 +381,7 @@ const HeroSection = () => {
                 fontSize: {
                   xs: "14px",
                   sm: "15px",
+                  lg: '17px',
                 },
                 fontWeight: 700,
                 whiteSpace: "nowrap",
@@ -414,6 +420,7 @@ const HeroSection = () => {
               xs: 8,
               sm: 4,
               md: 5,
+              lg: '4.2rem',
             },
             width: {
               xs: "100%",
@@ -473,6 +480,7 @@ const HeroSection = () => {
                   xs: "18px",
                   sm: "23px",
                   md: "24px",
+                  lg: '27px',
                 },
                 fontWeight: 800,
                 lineHeight: 1.15,
@@ -491,6 +499,7 @@ const HeroSection = () => {
                   xs: "9.5px",
                   sm: "12px",
                   md: "13px",
+                  lg: '15px',
                 },
                 fontWeight: 600,
                 mt: 0.4,
@@ -538,6 +547,7 @@ const HeroSection = () => {
                   xs: "18px",
                   sm: "23px",
                   md: "24px",
+                  lg: '27px',
                 },
                 fontWeight: 800,
                 lineHeight: 1.15,
@@ -556,6 +566,7 @@ const HeroSection = () => {
                   xs: "9.5px",
                   sm: "12px",
                   md: "13px",
+                  lg: '15px',
                 },
                 fontWeight: 600,
                 mt: 0.4,
@@ -603,6 +614,7 @@ const HeroSection = () => {
                   xs: "18px",
                   sm: "23px",
                   md: "24px",
+                  lg: '27px',
                 },
                 fontWeight: 800,
                 lineHeight: 1.15,
@@ -621,6 +633,7 @@ const HeroSection = () => {
                   xs: "9.5px",
                   sm: "12px",
                   md: "13px",
+                  lg: '15px',
                 },
                 fontWeight: 600,
                 mt: 0.4,
