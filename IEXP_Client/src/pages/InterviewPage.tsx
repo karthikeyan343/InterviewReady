@@ -106,7 +106,7 @@ const InterviewPage: React.FC = () => {
   const [showEndEarlyModal, setShowEndEarlyModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
-  // 15-second candidate no-answer countdown
+  // 20-second candidate no-answer countdown
   const [candidateCountdown, setCandidateCountdown] = useState<number | null>(null);
   const candidateNoAnswerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const candidateCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -317,6 +317,7 @@ const InterviewPage: React.FC = () => {
       candidateCountdownIntervalRef.current = null;
     }
     setCandidateCountdown(null);
+    console.log("[Live Interview] Candidate timer cleared.");
   };
 
   const startCandidateNoAnswerTimeout = () => {
@@ -330,9 +331,10 @@ const InterviewPage: React.FC = () => {
       return;
     }
 
+    console.log("[Live Interview] Candidate timer started (20s).");
     isProcessingSkipRef.current = false;
-    setCandidateCountdown(15);
-    let remaining = 15;
+    setCandidateCountdown(20);
+    let remaining = 20;
 
     candidateCountdownIntervalRef.current = setInterval(() => {
       remaining -= 1;
@@ -361,11 +363,11 @@ const InterviewPage: React.FC = () => {
 
       isProcessingSkipRef.current = true;
       console.warn(
-        `[Live Interview] Candidate no-answer 15s timeout reached for Question ${interviewerQuestionCountRef.current}. Marking question skipped.`,
+        `[Live Interview] Candidate no-answer 20s timeout reached for Question ${interviewerQuestionCountRef.current}. Marking question skipped.`,
       );
 
       setCandidateTranscript(
-        "Question skipped (no response received within 15 seconds).",
+        "Question skipped (no response received within 20 seconds).",
       );
 
       void saveConversationTurn("candidate", "[Skipped / No Answer]", false).catch(
@@ -387,12 +389,12 @@ const InterviewPage: React.FC = () => {
         );
       } else {
         liveServiceRef.current?.sendText(
-          "The candidate did not provide an answer within 15 seconds. The question was skipped. Please ask the next question now.",
+          "The candidate did not provide an answer within 20 seconds. The question was skipped. Please ask the next question now.",
         );
       }
 
       startGeminiIdleWatchdog();
-    }, 15000);
+    }, 20000);
   };
 
   const clearGeminiIdleWatchdog = () => {
@@ -405,12 +407,14 @@ const InterviewPage: React.FC = () => {
       geminiRecoveryTimerRef.current = null;
     }
     setIdleProcessingNotice("");
+    console.log("[Live Interview] Gemini watchdog cleared.");
   };
 
   const startGeminiIdleWatchdog = () => {
     clearGeminiIdleWatchdog();
     if (interviewCompletedRef.current) return;
 
+    console.log("[Live Interview] Gemini watchdog started (20s).");
     geminiMeaningfulProgressRef.current = false;
 
     geminiIdleTimerRef.current = setTimeout(() => {
@@ -423,64 +427,13 @@ const InterviewPage: React.FC = () => {
         started
       ) {
         console.warn(
-          "[Live Interview] 20s Gemini idle watchdog fired without response. Performing recovery...",
+          "[Live Interview] 20-second Gemini watchdog fired without response.",
         );
-        setIdleProcessingNotice(
-          "Your response was received. We're processing the next question...",
+        console.warn(
+          "[Live Interview] High Demand modal triggered.",
         );
-
-        const target = totalQuestionsRef.current || 20;
-        const isClosing =
-          waitingForClosingStatementRef.current ||
-          candidateAnswerCountRef.current >= target;
-
-        if (liveServiceRef.current?.isConnected()) {
-          if (isClosing) {
-            console.log(
-              "[Live Interview] Recovery: Nudging Gemini for final closing statement...",
-            );
-            liveServiceRef.current.sendText(
-              "The candidate has completed the final question. Please provide a brief closing statement concluding the interview: 'Thank you for attending the interview. That concludes the interview.' and stop speaking.",
-            );
-          } else {
-            const lastCandidateAns = lastSavedCandidateTextRef.current;
-            console.log(
-              "[Live Interview] Recovery: Prompting Gemini to progress with next question...",
-            );
-            if (lastCandidateAns && !lastCandidateAns.startsWith("[Skipped")) {
-              liveServiceRef.current.sendText(
-                `The candidate completed their answer: "${lastCandidateAns}". Please ask the next question now.`,
-              );
-            } else {
-              liveServiceRef.current.sendText(
-                "The candidate has completed their response. Please ask the next question now.",
-              );
-            }
-          }
-        } else {
-          console.warn(
-            "[Live Interview] Recovery: Connection dropped. Reconnecting...",
-          );
-          void handleReconnect();
-        }
-
-        // 10-second recovery window (total ~30s)
-        geminiRecoveryTimerRef.current = setTimeout(() => {
-          geminiRecoveryTimerRef.current = null;
-
-          if (
-            !interviewCompletedRef.current &&
-            !geminiSpeakingRef.current &&
-            !geminiMeaningfulProgressRef.current &&
-            started
-          ) {
-            console.warn(
-              "[Live Interview] Recovery window (~30s total) expired without response. Displaying high demand notification.",
-            );
-            setIdleProcessingNotice("");
-            setShowHighDemandModal(true);
-          }
-        }, 10000);
+        setIdleProcessingNotice("");
+        setShowHighDemandModal(true);
       }
     }, 20000);
   };
@@ -754,6 +707,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       // Candidate started speaking the current turn:
       // immediately clear previous answer and cancel candidate timeout
       isCandidateSpeakingTurnRef.current = true;
+      console.log("[Live Interview] Candidate speech started.");
       clearCandidateNoAnswerTimeout();
       clearGeminiIdleWatchdog();
       setCandidateTranscript("");
@@ -784,6 +738,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       lastSavedCandidateTextRef.current = cleanedText;
       candidateAnswerCountRef.current += 1;
       isCandidateSpeakingTurnRef.current = false;
+      console.log("[Live Interview] Candidate turn finalized:", cleanedText);
 
       // Keep the current finalized answer visible in UI until next candidate speech starts
       setCandidateTranscript(cleanedText);
@@ -928,13 +883,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         return;
       }
 
-      if (micEnabled) {
+      if (micEnabled && liveServiceRef.current?.isConnected()) {
         liveServiceRef.current?.resumeMicrophone();
       }
 
       if (!interviewCompletedRef.current) {
         setAiStatus("Listening");
-        // Start 15-second candidate no-answer timeout now that Gemini has finished speaking
+        // Start 20-second candidate no-answer timeout now that Gemini has finished speaking
         startCandidateNoAnswerTimeout();
       }
     },

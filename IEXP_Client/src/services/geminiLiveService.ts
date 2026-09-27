@@ -57,6 +57,8 @@ class GeminiLiveService {
 
   private isSpeaking = false;
 
+  private speakingEndNotified = false;
+
   private turnCompleteReceived = false;
 
   private setupTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -164,6 +166,7 @@ class GeminiLiveService {
       this.clearSpeakingEndTimer();
 
       this.isSpeaking = false;
+      this.speakingEndNotified = false;
       this.turnCompleteReceived = false;
       this.microphonePaused = false;
       this.outputTranscriptBuffer = "";
@@ -335,7 +338,7 @@ class GeminiLiveService {
           }
 
           if (serverContent?.interrupted) {
-            console.log("Gemini Live generation interrupted.");
+            console.log("[Live Interview] Gemini generation interrupted.");
             this.clearSpeakingEndTimer();
 
             for (const source of this.audioSources) {
@@ -345,11 +348,7 @@ class GeminiLiveService {
 
             this.nextAudioTime = this.audioContext?.currentTime ?? 0;
             this.scheduledAudioEndTime = this.nextAudioTime;
-            this.isSpeaking = false;
-            this.turnCompleteReceived = false;
-            this.outputTranscriptBuffer = "";
-            this.stopAudioLevelMonitoring();
-            handlers.onSpeakingEnd?.();
+            this.emitSpeakingEnd(handlers);
           }
 
           const inputTranscript = serverContent?.inputTranscription?.text;
@@ -381,7 +380,7 @@ class GeminiLiveService {
               this.candidateTurnEndTimer = null;
             }
             const answer = this.inputTranscriptBuffer.trim();
-            console.log("Candidate turn finalized immediately on model response:", answer);
+            console.log("[Live Interview] Candidate turn finalized immediately on model response:", answer);
             this.candidateTurnEndHandler?.(answer);
           }
 
@@ -417,9 +416,10 @@ class GeminiLiveService {
               if (!this.isSpeaking) {
                 this.clearSpeakingEndTimer();
 
+                this.speakingEndNotified = false;
                 this.isSpeaking = true;
 
-                console.log("Gemini is speaking.");
+                console.log("[Live Interview] Gemini speaking start.");
 
                 handlers.onSpeakingStart?.();
               }
@@ -432,7 +432,7 @@ class GeminiLiveService {
 
           if (serverContent?.turnComplete) {
             console.log(
-              "Gemini turn completed. Waiting for scheduled audio to finish.",
+              "[Live Interview] Gemini turnComplete received.",
             );
 
             this.turnCompleteReceived = true;
@@ -446,8 +446,7 @@ class GeminiLiveService {
             if (this.isSpeaking) {
               this.notifySpeakingEndWhenAudioFinishes(handlers);
             } else {
-              this.turnCompleteReceived = false;
-              this.outputTranscriptBuffer = "";
+              this.emitSpeakingEnd(handlers);
             }
           }
         } catch (error) {
@@ -483,6 +482,7 @@ class GeminiLiveService {
         this.setupCompleted = false;
 
         this.isSpeaking = false;
+        this.speakingEndNotified = false;
         this.turnCompleteReceived = false;
         this.stopAudioLevelMonitoring();
         this.audioLevelHandler = null;
@@ -509,6 +509,33 @@ class GeminiLiveService {
     });
   }
 
+  private emitSpeakingEnd(handlers: LiveMessageHandlers): void {
+    if (this.speakingEndNotified) {
+      console.log(
+        "[Live Interview] Gemini speaking end skipped because already emitted.",
+      );
+      return;
+    }
+
+    this.speakingEndNotified = true;
+    this.isSpeaking = false;
+    this.turnCompleteReceived = false;
+
+    this.clearSpeakingEndTimer();
+    this.stopAudioLevelMonitoring();
+
+    this.outputTranscriptBuffer = "";
+
+    console.log(
+      "[Gemini Live] Speaking ended. Candidate microphone can resume.",
+    );
+    console.log(
+      "[Live Interview] Gemini speaking end emitted.",
+    );
+
+    handlers.onSpeakingEnd?.();
+  }
+
   private clearSpeakingEndTimer(): void {
     if (this.speakingEndTimer) {
       clearTimeout(this.speakingEndTimer);
@@ -522,14 +549,12 @@ class GeminiLiveService {
     this.clearSpeakingEndTimer();
 
     if (!this.isSpeaking) {
+      this.emitSpeakingEnd(handlers);
       return;
     }
 
     if (!this.audioContext) {
-      this.isSpeaking = false;
-      this.turnCompleteReceived = false;
-      this.outputTranscriptBuffer = "";
-      handlers.onSpeakingEnd?.();
+      this.emitSpeakingEnd(handlers);
       return;
     }
 
@@ -541,10 +566,7 @@ class GeminiLiveService {
     const delayMs = Math.ceil(remainingSeconds * 1000) + 20;
 
     if (delayMs <= 20) {
-      this.isSpeaking = false;
-      this.turnCompleteReceived = false;
-      this.outputTranscriptBuffer = "";
-      handlers.onSpeakingEnd?.();
+      this.emitSpeakingEnd(handlers);
       return;
     }
 
@@ -552,6 +574,7 @@ class GeminiLiveService {
       this.speakingEndTimer = null;
 
       if (!this.isSpeaking) {
+        this.emitSpeakingEnd(handlers);
         return;
       }
 
@@ -563,15 +586,7 @@ class GeminiLiveService {
         return;
       }
 
-      this.isSpeaking = false;
-      this.turnCompleteReceived = false;
-      this.stopAudioLevelMonitoring();
-
-      this.outputTranscriptBuffer = "";
-
-      console.log("Gemini realtime audio finished -> Listening.");
-
-      handlers.onSpeakingEnd?.();
+      this.emitSpeakingEnd(handlers);
     }, delayMs);
   }
 
@@ -882,12 +897,12 @@ class GeminiLiveService {
 
       if (answer && !this.candidateTurnFinalized) {
         this.candidateTurnFinalized = true;
-        console.log("Candidate turn ended:", answer);
+        console.log("[Live Interview] Candidate turn finalized:", answer);
         this.candidateTurnEndHandler?.(answer);
       } else if (!answer && !this.isSpeaking) {
         // No speech was detected in the transcript buffer and Gemini is not speaking;
         // resume microphone so candidate can answer.
-        console.log("No transcript captured for VAD event. Resuming microphone.");
+        console.log("[Live Interview] No transcript captured for VAD event. Resuming microphone.");
         this.resumeMicrophone();
       }
     }, this.candidateTranscriptFlushMs);
@@ -910,7 +925,7 @@ class GeminiLiveService {
         this.candidateTurnFinalized = false;
         this.inputTranscriptBuffer = "";
 
-        console.log("Candidate speech started.");
+        console.log("[Live Interview] Candidate speech started.");
         this.candidateSpeechStartHandler?.();
       }
 
@@ -1053,17 +1068,17 @@ class GeminiLiveService {
 
   pauseMicrophone(): void {
     this.microphonePaused = true;
-    console.log("Gemini microphone paused.");
+    console.log("[Live Interview] Microphone paused.");
   }
 
   resumeMicrophone(): void {
     if (!this.inputAudioProcessor) {
-      console.warn("Gemini microphone pipeline is not active.");
+      console.warn("[Live Interview] Gemini microphone pipeline is not active.");
       return;
     }
 
     this.microphonePaused = false;
-    console.log("Gemini microphone resumed.");
+    console.log("[Live Interview] Microphone resumed.");
   }
 
   isMicrophonePaused(): boolean {
@@ -1161,6 +1176,7 @@ class GeminiLiveService {
     this.isConnecting = false;
 
     this.isSpeaking = false;
+    this.speakingEndNotified = false;
     this.turnCompleteReceived = false;
     this.stopAudioLevelMonitoring();
     this.audioLevelHandler = null;
@@ -1230,6 +1246,7 @@ class GeminiLiveService {
     this.setupCompleted = false;
     this.isConnecting = false;
     this.isSpeaking = false;
+    this.speakingEndNotified = false;
     this.turnCompleteReceived = false;
     this.microphonePaused = false;
     this.outputTranscriptBuffer = "";

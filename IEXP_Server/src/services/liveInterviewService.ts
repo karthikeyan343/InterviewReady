@@ -5,8 +5,8 @@ import LiveInterviewTurn from "../models/LiveInterviewTurn.js";
 import InterviewReport from "../models/InterviewReport.js";
 
 import {
-  generateInterviewReportWithGemini,
-} from "./geminiInterviewReportService.js";
+  generateInterviewReportWithOpenRouter,
+} from "./openrouterInterviewReportService.js";
 
 import {
   getInterviewQuestionLimit,
@@ -436,7 +436,7 @@ export const executeAsyncReportGeneration = async (
       `[Report Worker] Generating AI report for interview ${interviewId} (${conversation.length} turns, Role: ${interview.role}, Type: ${interview.interviewType}, Difficulty: ${interview.difficulty})...`
     );
 
-    const generatedReport = await generateInterviewReportWithGemini({
+    const generatedReport = await generateInterviewReportWithOpenRouter({
       role: interview.role,
       interviewType: interview.interviewType,
       difficulty: interview.difficulty,
