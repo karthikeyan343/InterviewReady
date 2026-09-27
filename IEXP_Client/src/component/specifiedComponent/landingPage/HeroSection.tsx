@@ -11,12 +11,7 @@ const HeroSection = () => {
       sx={{
         position: "relative",
         width: "100%",
-        minHeight: {
-          xs: "100vh",
-          sm: "720px",
-          md: "620px",
-          lg: "600px",
-        },
+        minHeight: "100vh",
 
         display: "flex",
         alignItems: {
