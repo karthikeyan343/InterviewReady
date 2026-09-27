@@ -10,6 +10,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 export interface InterviewReadyScreenProps {
   id?: string;
   loading: boolean;
+  isCheckingSession?: boolean;
   mediaReady: boolean;
   cameraEnabled: boolean;
   micEnabled: boolean;
@@ -22,6 +23,7 @@ export interface InterviewReadyScreenProps {
 const InterviewReadyScreen: React.FC<InterviewReadyScreenProps> = ({
   id,
   loading,
+  isCheckingSession = false,
   mediaReady,
   cameraEnabled,
   micEnabled,
@@ -405,9 +407,9 @@ const InterviewReadyScreen: React.FC<InterviewReadyScreenProps> = ({
             <Button
               variant="contained"
               onClick={onStart}
-              disabled={loading}
+              disabled={loading || isCheckingSession}
               startIcon={
-                loading ? (
+                loading || isCheckingSession ? (
                   <CircularProgress size={16} color="inherit" />
                 ) : (
                   <PlayArrowIcon sx={{ fontSize: "17px !important" }} />
@@ -431,12 +433,16 @@ const InterviewReadyScreen: React.FC<InterviewReadyScreenProps> = ({
                 },
               }}
             >
-              {loading ? "Joining Interview..." : "Join Interview"}
+              {loading
+                ? "Joining Interview..."
+                : isCheckingSession
+                  ? "Checking Session..."
+                  : "Join Interview"}
             </Button>
 
             <Button
               onClick={onBack}
-              disabled={loading}
+              disabled={loading || isCheckingSession}
               startIcon={<ArrowBackIcon sx={{ fontSize: "15px !important" }} />}
               sx={{
                 order: { xs: 2, sm: 1 },

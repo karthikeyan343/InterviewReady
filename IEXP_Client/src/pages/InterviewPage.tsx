@@ -119,6 +119,10 @@ const InterviewPage: React.FC = () => {
   const isStartingInterviewRef = useRef(false);
   const resumeSessionDataRef = useRef<any>(null);
 
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const isCheckingSessionRef = useRef(true);
+  const isReStatingPendingQuestionRef = useRef(false);
+
   // Single authoritative Gemini idle watchdog
   const geminiIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const geminiRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -505,6 +509,7 @@ const InterviewPage: React.FC = () => {
     setShowLeaveModal(false);
     isLeavingRef.current = true;
     isReconnectingRef.current = false;
+    isReStatingPendingQuestionRef.current = false;
     connectionGenerationRef.current += 1;
 
     clearCandidateNoAnswerTimeout();
@@ -671,6 +676,9 @@ const InterviewPage: React.FC = () => {
       const answeredQ = candidateAnswerCountRef.current;
 
       if (isResume || currentQ > 0) {
+        const isReStating = Boolean(isResume && currentQ > answeredQ);
+        isReStatingPendingQuestionRef.current = isReStating;
+
         const lastQ =
           resumeSessionData?.lastInterviewerTurn ||
           lastSavedInterviewerTextRef.current ||
@@ -913,6 +921,25 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       }
       lastSavedInterviewerTextRef.current = cleanedText;
 
+      if (isReStatingPendingQuestionRef.current) {
+        isReStatingPendingQuestionRef.current = false;
+        console.log(
+          `[Live Interview] Re-stated unanswered Question ${interviewerQuestionCountRef.current}. Question count preserved.`,
+        );
+
+        setCurrentQuestion(interviewerQuestionCountRef.current);
+
+        void saveConversationTurn(
+          "interviewer",
+          cleanedText,
+          false,
+        ).catch((err) => {
+          console.warn("Error saving re-stated interviewer turn:", err);
+        });
+
+        return;
+      }
+
       const target = totalQuestionsRef.current || 20;
       const lowerText = cleanedText.toLowerCase();
       const isClosingStatement =
@@ -1073,9 +1100,17 @@ Begin the interview now with a brief professional introduction and Question 1.`,
   // Check and restore session on page mount / refresh
   useEffect(() => {
     let mounted = true;
+    setIsCheckingSession(true);
+    isCheckingSessionRef.current = true;
 
     const checkAndResumeSession = async () => {
-      if (!id) return;
+      if (!id) {
+        if (mounted) {
+          setIsCheckingSession(false);
+          isCheckingSessionRef.current = false;
+        }
+        return;
+      }
 
       try {
         const response = await fetch(
@@ -1131,6 +1166,11 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         }
       } catch (err) {
         console.warn("[Live Interview] Could not check session state:", err);
+      } finally {
+        if (mounted) {
+          setIsCheckingSession(false);
+          isCheckingSessionRef.current = false;
+        }
       }
     };
 
@@ -1172,6 +1212,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       waitingForClosingStatementRef.current = false;
 
       if (!isResume) {
+        isReStatingPendingQuestionRef.current = false;
         geminiSystemInstructionSentRef.current = false;
         lastSavedCandidateTextRef.current = "";
         lastSavedInterviewerTextRef.current = "";
@@ -1351,12 +1392,19 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       <InterviewReadyScreen
         id={id}
         loading={loading}
+        isCheckingSession={isCheckingSession}
         mediaReady={mediaReady}
         cameraEnabled={cameraEnabled}
         micEnabled={micEnabled}
         mediaError={mediaError}
         error={error}
         onStart={() => {
+          if (isCheckingSessionRef.current) {
+            console.log(
+              "[Live Interview] Session check in progress. Ignoring premature start.",
+            );
+            return;
+          }
           if (resumeSessionDataRef.current) {
             void handleStartInterview(true, resumeSessionDataRef.current);
           } else {
