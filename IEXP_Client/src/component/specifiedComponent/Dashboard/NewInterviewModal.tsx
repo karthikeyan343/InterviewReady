@@ -8,6 +8,7 @@ import {
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { useResume } from "../../../services/apiQueries";
 
 interface NewInterviewModalProps {
   open: boolean;
@@ -16,7 +17,7 @@ interface NewInterviewModalProps {
     role: string;
     interviewType: "Technical" | "Behavioral" | "Mixed";
     difficulty: "Easy" | "Medium" | "Hard";
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 const NewInterviewModal: React.FC<NewInterviewModalProps> = ({
@@ -24,6 +25,7 @@ const NewInterviewModal: React.FC<NewInterviewModalProps> = ({
   onClose,
   onCreate,
 }) => {
+  const { data: resumeData, isLoading: resumeLoading } = useResume();
   const [role, setRole] = useState("");
 
   const [interviewType, setInterviewType] = useState<
@@ -36,7 +38,14 @@ const NewInterviewModal: React.FC<NewInterviewModalProps> = ({
 
   const [error, setError] = useState("");
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    if (!resumeLoading && !resumeData?.resume) {
+      setError(
+        "Please upload your resume first, then you can continue the interview process."
+      );
+      return;
+    }
+
     const cleanedRole = role.trim();
 
     if (!cleanedRole) {
@@ -46,11 +55,17 @@ const NewInterviewModal: React.FC<NewInterviewModalProps> = ({
 
     setError("");
 
-    onCreate?.({
-      role: cleanedRole,
-      interviewType,
-      difficulty,
-    });
+    try {
+      await onCreate?.({
+        role: cleanedRole,
+        interviewType,
+        difficulty,
+      });
+    } catch (err: any) {
+      setError(
+        err?.message || "Failed to create interview. Please try again."
+      );
+    }
   };
 
   const handleClose = () => {
@@ -242,6 +257,38 @@ const NewInterviewModal: React.FC<NewInterviewModalProps> = ({
             />
           </IconButton>
         </Box>
+
+        {/* Error Banner */}
+        {error && (
+          <Box
+            sx={{
+              backgroundColor: "#fff1f1",
+              border: "1px solid #ffd6d6",
+              borderRadius: "8px",
+              px: "12px",
+              py: "10px",
+              mb: {
+                xs: "16px",
+                sm: "18px",
+              },
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: {
+                  xs: "11.5px",
+                  sm: "12px",
+                },
+                fontWeight: 600,
+                color: "#c54444",
+                fontFamily: '"Manrope", sans-serif',
+                lineHeight: 1.45,
+              }}
+            >
+              {error}
+            </Typography>
+          </Box>
+        )}
 
         {/* Job Role */}
         <Box

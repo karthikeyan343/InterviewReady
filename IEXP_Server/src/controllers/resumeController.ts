@@ -4,6 +4,10 @@ import mammoth from "mammoth";
 import { AuthRequest } from "../middleware/authMiddleware.js";
 import supabase from "../config/supabase.js";
 import Resume from "../models/Resume.js";
+import {
+  validateResume,
+  RESUME_CONFIDENCE_THRESHOLD,
+} from "../services/resumeValidationService.js";
 
 const BUCKET_NAME = "resumes";
 
@@ -75,6 +79,31 @@ export const uploadResume = async (
       return;
     }
 
+    // Two-layer validation (deterministic + semantic AI) BEFORE Supabase storage
+    let validationResult;
+    try {
+      validationResult = await validateResume(extractedText);
+    } catch (valError: any) {
+      console.error("Resume validation service error:", valError);
+      res.status(503).json({
+        message:
+          "Resume validation service is temporarily unavailable. Please try again in a few moments.",
+        error: valError?.message || "Validation service failure",
+      });
+      return;
+    }
+
+    if (
+      !validationResult.isResume ||
+      validationResult.confidence < RESUME_CONFIDENCE_THRESHOLD
+    ) {
+      res.status(400).json({
+        message: "Please upload a valid resume.",
+        reason: validationResult.reason,
+      });
+      return;
+    }
+
     const safeFileName = file.originalname.replace(
       /[^a-zA-Z0-9._-]/g,
       "_"
@@ -82,6 +111,7 @@ export const uploadResume = async (
 
     const storagePath = `${req.userId}/${Date.now()}-${safeFileName}`;
 
+    // ONLY after successful validation: upload original file to Supabase
     const { error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(storagePath, file.buffer, {
@@ -98,24 +128,36 @@ export const uploadResume = async (
       return;
     }
 
+    // ONLY after successful Supabase upload: create or update Resume MongoDB document
     if (existingResume) {
-      const { error: deleteError } = await supabase.storage
-        .from(BUCKET_NAME)
-        .remove([existingResume.storagePath]);
-
-      if (deleteError) {
-        console.error(
-          "Old resume deletion error:",
-          deleteError
-        );
-      }
+      const oldStoragePath = existingResume.storagePath;
 
       existingResume.originalFileName = file.originalname;
       existingResume.fileType = file.mimetype;
       existingResume.storagePath = storagePath;
       existingResume.extractedText = extractedText;
 
-      await existingResume.save();
+      try {
+        await existingResume.save();
+      } catch (dbError) {
+        // Rollback newly uploaded Supabase file if MongoDB update fails
+        await supabase.storage.from(BUCKET_NAME).remove([storagePath]);
+        throw dbError;
+      }
+
+      // ONLY delete old resume from Supabase after successful new resume storage
+      if (oldStoragePath && oldStoragePath !== storagePath) {
+        const { error: deleteError } = await supabase.storage
+          .from(BUCKET_NAME)
+          .remove([oldStoragePath]);
+
+        if (deleteError) {
+          console.error(
+            "Old resume deletion error:",
+            deleteError
+          );
+        }
+      }
 
       res.status(200).json({
         message: "Resume replaced successfully",
@@ -131,13 +173,20 @@ export const uploadResume = async (
       return;
     }
 
-    const resume = await Resume.create({
-      userId: req.userId,
-      originalFileName: file.originalname,
-      fileType: file.mimetype,
-      storagePath,
-      extractedText,
-    });
+    let resume;
+    try {
+      resume = await Resume.create({
+        userId: req.userId,
+        originalFileName: file.originalname,
+        fileType: file.mimetype,
+        storagePath,
+        extractedText,
+      });
+    } catch (dbError) {
+      // Rollback newly uploaded Supabase file if MongoDB creation fails
+      await supabase.storage.from(BUCKET_NAME).remove([storagePath]);
+      throw dbError;
+    }
 
     res.status(201).json({
       message: "Resume uploaded successfully",

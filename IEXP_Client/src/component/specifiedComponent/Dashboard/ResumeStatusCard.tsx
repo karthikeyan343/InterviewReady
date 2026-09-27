@@ -426,7 +426,7 @@ const ResumeStatusCard: React.FC = () => {
               }}
             >
               {uploading
-                ? "Uploading..."
+                ? "Validating resume..."
                 : "Replace Resume"}
             </Button>
           </Box>
@@ -486,7 +486,7 @@ const ResumeStatusCard: React.FC = () => {
             }}
           >
             {uploading
-              ? "Uploading..."
+              ? "Validating resume..."
               : "Upload Resume"}
           </Button>
         </Box>

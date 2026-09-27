@@ -289,7 +289,7 @@ const response = await fetch(
             }}
           >
             {uploading
-              ? "Uploading..."
+              ? "Validating resume..."
               : resume
               ? "Replace Resume"
               : "Upload Resume"}
@@ -740,6 +740,7 @@ const response = await fetch(
               variant="contained"
               startIcon={<CloudUploadOutlinedIcon />}
               onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
               sx={{
                 width: {
                   xs: "100%",
@@ -765,7 +766,7 @@ const response = await fetch(
                 },
               }}
             >
-              Upload Resume
+              {uploading ? "Validating resume..." : "Upload Resume"}
             </Button>
 
             <Typography

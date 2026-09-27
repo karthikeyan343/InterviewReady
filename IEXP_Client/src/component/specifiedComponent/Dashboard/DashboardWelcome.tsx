@@ -67,7 +67,9 @@ const DashboardWelcome: React.FC = () => {
           "Create interview error:",
           result.message
         );
-        return;
+        throw new Error(
+          result.message || "Failed to create interview. Please try again."
+        );
       }
 
       console.log(
@@ -83,7 +85,7 @@ const DashboardWelcome: React.FC = () => {
           "Interview ID not found:",
           result
         );
-        return;
+        throw new Error("Interview ID not returned by server.");
       }
 
       invalidateDashboard();
@@ -99,6 +101,7 @@ const DashboardWelcome: React.FC = () => {
         "Create interview error:",
         error
       );
+      throw error;
     }
   };
 

@@ -114,7 +114,9 @@ const InterviewsPage: React.FC = () => {
           "Create interview error:",
           result.message
         );
-        return;
+        throw new Error(
+          result.message || "Failed to create interview. Please try again."
+        );
       }
 
       const interviewId = result.interview?.id;
@@ -124,7 +126,7 @@ const InterviewsPage: React.FC = () => {
           "Interview ID not found:",
           result
         );
-        return;
+        throw new Error("Interview ID not returned by server.");
       }
 
       invalidateInterviews();
@@ -138,6 +140,7 @@ const InterviewsPage: React.FC = () => {
         "Create interview error:",
         createErr
       );
+      throw createErr;
     }
   };
 
