@@ -462,6 +462,10 @@ class GeminiLiveService {
       };
 
       websocket.onerror = (event) => {
+        if (this.websocket !== websocket) {
+          return;
+        }
+
         console.error("Gemini WebSocket error:", event);
 
         handlers.onError?.(event);
@@ -470,6 +474,10 @@ class GeminiLiveService {
       };
 
       websocket.onclose = (event) => {
+        if (this.websocket !== websocket) {
+          return;
+        }
+
         this.clearSetupTimeout();
         this.clearSpeakingEndTimer();
 
@@ -492,9 +500,7 @@ class GeminiLiveService {
         this.inputTranscriptBuffer = "";
         this.cancelCandidateVad();
 
-        if (this.websocket === websocket) {
-          this.websocket = null;
-        }
+        this.websocket = null;
 
         handlers.onClose?.();
 
@@ -1165,11 +1171,18 @@ class GeminiLiveService {
 
     if (this.websocket) {
       try {
+        this.websocket.onopen = null;
+        this.websocket.onmessage = null;
+        this.websocket.onerror = null;
+        this.websocket.onclose = null;
         this.websocket.close(1000, "Interview ended");
       } catch {}
 
       this.websocket = null;
     }
+
+    this.candidateTurnEndHandler = null;
+    this.candidateSpeechStartHandler = null;
 
     this.setupCompleted = false;
 

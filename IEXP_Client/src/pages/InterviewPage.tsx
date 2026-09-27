@@ -115,6 +115,9 @@ const InterviewPage: React.FC = () => {
   const isLeavingRef = useRef(false);
   const isReconnectingRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
+  const connectionGenerationRef = useRef(0);
+  const isStartingInterviewRef = useRef(false);
+  const resumeSessionDataRef = useRef<any>(null);
 
   // Single authoritative Gemini idle watchdog
   const geminiIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -501,6 +504,8 @@ const InterviewPage: React.FC = () => {
   const handleConfirmLeave = () => {
     setShowLeaveModal(false);
     isLeavingRef.current = true;
+    isReconnectingRef.current = false;
+    connectionGenerationRef.current += 1;
 
     clearCandidateNoAnswerTimeout();
     clearGeminiIdleWatchdog();
@@ -542,10 +547,16 @@ const InterviewPage: React.FC = () => {
   };
 
   const handleReconnect = async () => {
-    if (isReconnectingRef.current || interviewCompletedRef.current || !id) {
+    if (
+      isReconnectingRef.current ||
+      interviewCompletedRef.current ||
+      isLeavingRef.current ||
+      !id
+    ) {
       return;
     }
 
+    const currentGeneration = connectionGenerationRef.current;
     isReconnectingRef.current = true;
     setReconnecting(true);
     setReconnectNotice(
@@ -557,7 +568,9 @@ const InterviewPage: React.FC = () => {
 
     while (
       reconnectAttemptsRef.current < maxAttempts &&
-      !interviewCompletedRef.current
+      !interviewCompletedRef.current &&
+      !isLeavingRef.current &&
+      currentGeneration === connectionGenerationRef.current
     ) {
       const delay = delays[reconnectAttemptsRef.current] || 5000;
       reconnectAttemptsRef.current += 1;
@@ -566,6 +579,13 @@ const InterviewPage: React.FC = () => {
         `[Live Interview] Reconnecting (attempt ${reconnectAttemptsRef.current}/${maxAttempts}) in ${delay}ms...`,
       );
       await new Promise((res) => setTimeout(res, delay));
+
+      if (
+        isLeavingRef.current ||
+        currentGeneration !== connectionGenerationRef.current
+      ) {
+        break;
+      }
 
       try {
         if (!streamRef.current) {
@@ -576,7 +596,12 @@ const InterviewPage: React.FC = () => {
           liveServiceRef.current = new GeminiLiveService();
         }
 
-        const handlers = createLiveHandlers(true, totalQuestionsRef.current);
+        const handlers = createLiveHandlers(
+          true,
+          totalQuestionsRef.current,
+          resumeSessionDataRef.current,
+          currentGeneration,
+        );
         await liveServiceRef.current.reconnect(id, handlers);
 
         console.log("[Live Interview] Reconnection successful!");
@@ -592,6 +617,14 @@ const InterviewPage: React.FC = () => {
 
     isReconnectingRef.current = false;
     setReconnecting(false);
+
+    if (
+      isLeavingRef.current ||
+      currentGeneration !== connectionGenerationRef.current
+    ) {
+      return;
+    }
+
     setError(
       "Connection to AI interviewer lost. Please click Join Interview to resume.",
     );
@@ -600,9 +633,20 @@ const InterviewPage: React.FC = () => {
   const createLiveHandlers = (
     isResume = false,
     targetLimitOverride?: number,
-    _resumeSessionData?: any,
+    resumeSessionData?: any,
+    generation?: number,
   ) => ({
     onOpen: async () => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        console.log(
+          "[Live Interview] Stale onOpen discarded from older connection.",
+        );
+        return;
+      }
+
       const stream = streamRef.current;
       if (!stream) {
         throw new Error("Microphone stream is not available.");
@@ -627,31 +671,59 @@ const InterviewPage: React.FC = () => {
       const answeredQ = candidateAnswerCountRef.current;
 
       if (isResume || currentQ > 0) {
-        const lastQ = interviewerTranscript || "";
-        liveServiceRef.current?.sendText(
-          `Resume the ongoing interview now.
+        const lastQ =
+          resumeSessionData?.lastInterviewerTurn ||
+          lastSavedInterviewerTextRef.current ||
+          "";
+
+        // Reconstruct full conversation history from all preserved turns
+        const previousTurns = Array.isArray(resumeSessionData?.turns)
+          ? resumeSessionData.turns
+              .filter(
+                (t: any) =>
+                  typeof t.text === "string" && t.text.trim().length > 0,
+              )
+              .map(
+                (t: any) =>
+                  `${
+                    t.speaker === "interviewer"
+                      ? "AI Interviewer"
+                      : "Candidate"
+                  }: "${t.text.trim()}"`,
+              )
+              .join("\n")
+          : "";
+
+        const resumePrompt = `Resume the ongoing interview now.
 
 Role: Interview Candidate
 Difficulty: Authoritative
 Target total questions: EXACTLY ${target} questions.
 
-STATUS:
+${previousTurns ? `CONVERSATION HISTORY SO FAR:\n${previousTurns}\n` : ""}
+CURRENT STATUS:
+- Total target questions: ${target}
 - Questions already asked: ${currentQ}
 - Candidate answers received: ${answeredQ}
-${lastQ ? `- Most recent question: "${lastQ}"` : ""}
+${lastQ ? `- Most recent question asked: "${lastQ}"` : ""}
 
-INSTRUCTIONS:
-1. Do NOT reset the question count.
-2. Every follow-up question counts toward the total of ${target}.
-3. The remaining questions to ask are exactly ${Math.max(0, target - currentQ)}.
+CRITICAL INSTRUCTIONS:
+1. Review the conversation history above. You are continuing this exact interview.
+2. Do NOT restart from Question 1. Do NOT greet or introduce yourself again.
+3. Every question counts toward the total of ${target}.
+4. Remaining questions to ask: ${Math.max(0, target - currentQ)}.
 ${
   currentQ > answeredQ
-    ? `4. The candidate was answering Question ${currentQ}. Re-state Question ${currentQ} briefly and wait for their answer.`
-    : `4. Ask Question ${currentQ + 1} now.`
+    ? `5. The candidate has not answered Question ${currentQ} yet. Re-state Question ${currentQ} briefly and clearly, then wait for their answer.`
+    : `5. Ask Question ${currentQ + 1} now based on the previous conversation.`
 }
-5. Ask exactly ONE question at a time.
-6. When ${target} questions have been answered, conclude with: "Thank you. The interview is now complete." and stop speaking.`,
+6. Ask exactly ONE question at a time and wait for the candidate's answer before proceeding.
+7. When all ${target} questions have been answered, conclude with: "Thank you. The interview is now complete." and stop speaking.`;
+
+        console.log(
+          `[Live Interview] Sending resume prompt to Gemini (Questions asked: ${currentQ}, Answers: ${answeredQ})`,
         );
+        liveServiceRef.current?.sendText(resumePrompt);
       } else if (!geminiSystemInstructionSentRef.current) {
         geminiSystemInstructionSentRef.current = true;
 
@@ -704,6 +776,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onCandidateSpeechStart: () => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
       // Candidate started speaking the current turn:
       // immediately clear previous answer and cancel candidate timeout
       isCandidateSpeakingTurnRef.current = true;
@@ -715,6 +794,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onInputTranscript: (text: string) => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
       if (!geminiSpeakingRef.current && !interviewCompletedRef.current) {
         setAiStatus("Listening");
         isCandidateSpeakingTurnRef.current = true;
@@ -724,6 +810,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onCandidateTurnEnd: (text: string) => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
       clearCandidateNoAnswerTimeout();
 
       const cleanedText = text.trim();
@@ -763,6 +856,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onOutputTranscript: (text: string) => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
       const cleanedText = text.trim();
       if (cleanedText) {
         setInterviewerTranscript(cleanedText);
@@ -776,6 +876,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onSpeakingStart: () => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
       geminiSpeakingRef.current = true;
       geminiMeaningfulProgressRef.current = true;
       clearCandidateNoAnswerTimeout();
@@ -787,6 +894,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onTurnComplete: (completeText: string) => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
       const cleanedText = completeText.trim();
       if (!cleanedText) return;
 
@@ -867,10 +981,24 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onAudioLevel: (level: number) => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
       setGeminiAudioLevel(level);
     },
 
     onSpeakingEnd: () => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
       geminiSpeakingRef.current = false;
       setGeminiAudioLevel(0);
       clearGeminiIdleWatchdog();
@@ -895,6 +1023,17 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onError: (liveError: any) => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
+      if (isLeavingRef.current) {
+        return;
+      }
+
       console.error("Gemini Live error:", liveError);
       clearCandidateNoAnswerTimeout();
       clearGeminiIdleWatchdog();
@@ -911,6 +1050,17 @@ Begin the interview now with a brief professional introduction and Question 1.`,
     },
 
     onClose: () => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+
+      if (isLeavingRef.current) {
+        return;
+      }
+
       console.log("Gemini Live WebSocket closed.");
       clearCandidateNoAnswerTimeout();
       clearGeminiIdleWatchdog();
@@ -945,8 +1095,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           return;
         }
 
-        if (data.interview?.status === "In Progress" || data.interview?.status === "Left") {
+        if (
+          data.interview?.status === "In Progress" ||
+          data.interview?.status === "Left"
+        ) {
           console.log("[Live Interview] Resuming active interview session:", data);
+          resumeSessionDataRef.current = data;
+
           const limit = data.stats?.totalQuestions ?? 20;
           totalQuestionsRef.current = limit;
           setTotalQuestions(limit);
@@ -955,9 +1110,11 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           interviewerQuestionCountRef.current = data.stats?.currentQuestion ?? 0;
 
           if (data.lastInterviewerTurn) {
+            lastSavedInterviewerTextRef.current = data.lastInterviewerTurn;
             setInterviewerTranscript(data.lastInterviewerTurn);
           }
           if (data.lastCandidateTurn) {
+            lastSavedCandidateTextRef.current = data.lastCandidateTurn;
             setCandidateTranscript(data.lastCandidateTurn);
           }
 
@@ -993,10 +1150,21 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       return;
     }
 
+    if (isStartingInterviewRef.current) {
+      console.log(
+        "[Live Interview] handleStartInterview already in progress. Skipping duplicate call.",
+      );
+      return;
+    }
+    isStartingInterviewRef.current = true;
+
     try {
       setLoading(true);
       setError("");
       setMediaError("");
+
+      isLeavingRef.current = false;
+      const currentGen = ++connectionGenerationRef.current;
 
       interviewCompletedRef.current = false;
       pendingCompletionRef.current = false;
@@ -1065,6 +1233,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         isResume,
         configuredLimit,
         resumeSessionData,
+        currentGen,
       );
       await liveService.connect(id, handlers);
 
@@ -1102,6 +1271,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       );
     } finally {
       setLoading(false);
+      isStartingInterviewRef.current = false;
     }
   };
 
@@ -1186,7 +1356,13 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         micEnabled={micEnabled}
         mediaError={mediaError}
         error={error}
-        onStart={() => void handleStartInterview(false)}
+        onStart={() => {
+          if (resumeSessionDataRef.current) {
+            void handleStartInterview(true, resumeSessionDataRef.current);
+          } else {
+            void handleStartInterview(false);
+          }
+        }}
         onBack={() => navigate("/dashboard")}
       />
     );
