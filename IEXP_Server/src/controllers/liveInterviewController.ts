@@ -3,7 +3,9 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import mongoose from "mongoose";
 
 import Interview from "../models/Interview.js";
+import Resume from "../models/Resume.js";
 import { AuthRequest } from "../middleware/authMiddleware.js";
+import { extractCompactResumeContext } from "../utils/resumeContextExtractor.js";
 
 import {
   startLiveInterview,
@@ -93,6 +95,26 @@ export const createLiveInterviewToken = async (
       apiKey: geminiApiKey,
     });
 
+    let compactResumeContext = "";
+
+    if (interview.resumeId) {
+      try {
+        const resume = await Resume.findOne({
+          _id: interview.resumeId,
+          userId: req.userId,
+        }).select("extractedText");
+
+        if (resume && resume.extractedText) {
+          compactResumeContext = extractCompactResumeContext(resume.extractedText);
+        }
+      } catch (resumeError) {
+        console.warn(
+          "[Live Interview] Failed to retrieve resume context for token creation:",
+          resumeError
+        );
+      }
+    }
+
     const systemInstruction = `
 You are the AI interviewer for InterviewReady.
 
@@ -100,7 +122,9 @@ You are responsible for conducting the ENTIRE interview.
 
 The backend does NOT control individual questions.
 
-INTERVIEW DETAILS:
+=====================================================
+CANDIDATE INTERVIEW CONTEXT
+=====================================================
 
 Role:
 ${interview.role}
@@ -113,6 +137,31 @@ ${interview.difficulty}
 
 Target number of TOTAL interview questions:
 ${questionLimit}
+
+${
+  compactResumeContext
+    ? `Relevant Resume Information:
+
+${compactResumeContext}
+
+=====================================================
+RESUME USAGE GUIDELINES
+=====================================================
+
+1. Use the candidate's resume context to make the interview relevant, personalized, and engaging.
+2. HIGHEST PRIORITY - PROJECTS: Prioritize questions about the candidate's projects, technical architectures, design decisions, and technologies they specifically used.
+3. Prioritize questions about the candidate's actual projects, technical skills, and relevant experience.
+4. Ask questions that can reasonably be answered or discussed based on the candidate's verified resume details and target role.
+5. STRICT ANTI-HALLUCINATION: Do NOT claim, assume, or state that the candidate has skills, technologies, projects, or experiences that are NOT present in the provided resume context.
+6. Use the resume as context, NOT as a rigid script. Do not interrogate them mechanically on every single item.
+7. Select relevant topics dynamically based on:
+   - Target role: ${interview.role}
+   - Interview type: ${interview.interviewType}
+   - Difficulty level: ${interview.difficulty}
+   - Candidate's previous answers in this session`
+    : `Relevant Resume Information:
+No resume information was provided for this candidate. Conduct the interview based on the target role (${interview.role}), interview type (${interview.interviewType}), and difficulty (${interview.difficulty}).`
+}
 
 =====================================================
 QUESTION COUNTING RULE
