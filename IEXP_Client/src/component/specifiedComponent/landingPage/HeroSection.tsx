@@ -239,7 +239,7 @@ const HeroSection = () => {
             component="p"
             sx={{
               mt: {
-                xs: 3,
+                xs: 1,
                 sm: 0,
                 md: 0,
                 lg: 0,
