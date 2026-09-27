@@ -12,7 +12,7 @@ const HeroSection = () => {
         position: "relative",
         width: "100%",
         minHeight: {
-          xs: "auto",
+          xs: "100vh",
           sm: "720px",
           md: "620px",
           lg: "600px",
@@ -188,11 +188,16 @@ const HeroSection = () => {
           <Typography
             component="h1"
             sx={{
-              m: 0,
+              mt: {
+                xs: 3,
+                sm: 0,
+                md: 0,
+                lg: 0,
+              },
               color: "#07194D",
               fontFamily: '"Manrope", sans-serif',
               fontSize: {
-                xs: "36px",
+                xs: "40px",
                 sm: "46px",
                 md: "56px",
                 lg: "60px",
@@ -233,9 +238,14 @@ const HeroSection = () => {
           <Typography
             component="p"
             sx={{
-              m: 0,
+              mt: {
+                xs: 3,
+                sm: 0,
+                md: 0,
+                lg: 0,
+              },
               mb: {
-                xs: 3.2,
+                xs: 4,
                 sm: 3.2,
                 md: 3.5,
               },
@@ -247,12 +257,12 @@ const HeroSection = () => {
               color: "#4A5D8A",
               fontFamily: '"Manrope", sans-serif',
               fontSize: {
-                xs: "14.5px",
+                xs: "17px",
                 sm: "15px",
                 md: "16px",
                 lg: "17px",
               },
-              fontWeight: 500,
+              fontWeight: 700,
               lineHeight: {
                 xs: 1.6,
                 sm: 1.55,
@@ -277,11 +287,17 @@ const HeroSection = () => {
                 sm: "center",
               },
               gap: {
-                xs: 1.5,
+                xs: 1.8,
                 sm: 2,
               },
               width: "fit-content",
               maxWidth: "100%",
+              mt: {
+                xs: 2,
+                sm: 0,
+                md: 0,
+                lg: 0,
+              },
             }}
           >
             <Button
@@ -400,7 +416,7 @@ const HeroSection = () => {
               sm: "flex-start",
             },
             mt: {
-              xs: 3.5,
+              xs: 8,
               sm: 4,
               md: 5,
             },
