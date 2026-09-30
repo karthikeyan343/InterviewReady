@@ -12,6 +12,9 @@ import ReportsPage from "./pages/ReportsPage";
 import ReportDetailPage from "./pages/ReportDetailPage";
 import ProfilePage from "./pages/ProfilePage";
 
+import ProtectedRoute from "./component/wrapperComponent/ProtectedRoute";
+import PublicRoute from "./component/wrapperComponent/PublicRoute";
+
 const App: React.FC = () => {
   return (
     <BrowserRouter>
@@ -23,32 +26,84 @@ const App: React.FC = () => {
 
         <Route
           path="/login"
-          element={<LoginPage />}
+          element={
+            <PublicRoute>
+              <LoginPage />
+            </PublicRoute>
+          }
         />
 
         <Route
           path="/register"
-          element={<RegistrationPage />}
+          element={
+            <PublicRoute>
+              <RegistrationPage />
+            </PublicRoute>
+          }
         />
 
         <Route
           path="/dashboard"
-          element={<Dashboard />}
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/interviews"
-          element={<InterviewsPage />}
+          element={
+            <ProtectedRoute>
+              <InterviewsPage />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/interviews/:id"
-          element={<InterviewPage />}
+          element={
+            <ProtectedRoute>
+              <InterviewPage />
+            </ProtectedRoute>
+          }
         />
-        <Route path="/resume" element={<ResumePage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/reports/:id" element={<ReportDetailPage />} />
+
+        <Route
+          path="/resume"
+          element={
+            <ProtectedRoute>
+              <ResumePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <ReportsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/reports/:id"
+          element={
+            <ProtectedRoute>
+              <ReportDetailPage />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

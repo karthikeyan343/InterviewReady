@@ -13,6 +13,17 @@ const getAuthHeaders = (): Record<string, string> => {
   };
 };
 
+export const handleAuthError = (status: number) => {
+  if (status === 401) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    const path = window.location.pathname;
+    if (path !== "/login" && path !== "/register" && path !== "/") {
+      window.location.href = "/login";
+    }
+  }
+};
+
 // ----------------------------------------------------
 // Types
 // ----------------------------------------------------
@@ -140,6 +151,7 @@ export const useDashboardData = () => {
         headers: getAuthHeaders(),
       });
       if (!response.ok) {
+        handleAuthError(response.status);
         throw new Error("Failed to fetch dashboard data");
       }
       return response.json();
@@ -164,6 +176,7 @@ export const useInterviews = () => {
         headers: getAuthHeaders(),
       });
       if (!response.ok) {
+        handleAuthError(response.status);
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to load interviews.");
       }
@@ -196,6 +209,7 @@ export const useResume = () => {
         return { resume: null };
       }
       if (!response.ok) {
+        handleAuthError(response.status);
         const data = await response.json().catch(() => ({}));
         throw new Error(data.message || "Failed to load resume.");
       }
@@ -218,6 +232,7 @@ export const useInterviewReport = (interviewId?: string) => {
         }
       );
       if (!response.ok) {
+        handleAuthError(response.status);
         const data = await response.json().catch(() => ({}));
         throw new Error(data.message || "Failed to fetch interview report.");
       }
@@ -245,6 +260,7 @@ export const useInterviewReportStatus = (interviewId?: string) => {
         }
       );
       if (!response.ok) {
+        handleAuthError(response.status);
         const data = await response.json().catch(() => ({}));
         throw new Error(data.message || "Failed to fetch report status.");
       }

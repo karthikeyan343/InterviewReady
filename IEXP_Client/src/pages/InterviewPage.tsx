@@ -122,6 +122,7 @@ const InterviewPage: React.FC = () => {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const isCheckingSessionRef = useRef(true);
   const isReStatingPendingQuestionRef = useRef(false);
+  const [sessionConflictModalOpen, setSessionConflictModalOpen] = useState(false);
 
   // Single authoritative Gemini idle watchdog
   const geminiIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -143,6 +144,34 @@ const InterviewPage: React.FC = () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [started]);
+
+  // Periodic session heartbeat to keep session lock fresh on backend
+  useEffect(() => {
+    if (!started || !id || interviewCompletedRef.current) return;
+
+    const heartbeatInterval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${getApiBaseUrl()}/interviews/${id}/live/heartbeat`,
+          {
+            method: "POST",
+            headers: getAuthHeaders(),
+          }
+        );
+        if (response.status === 409) {
+          setSessionConflictModalOpen(true);
+          liveServiceRef.current?.disconnect();
+        } else if (response.status === 401) {
+          liveServiceRef.current?.disconnect();
+          navigate("/login");
+        }
+      } catch (err) {
+        console.warn("[Live Interview] Heartbeat ping error:", err);
+      }
+    }, 15000);
+
+    return () => clearInterval(heartbeatInterval);
+  }, [started, id]);
 
   // Overall component teardown
   useEffect(() => {
@@ -251,6 +280,17 @@ const InterviewPage: React.FC = () => {
 
   const getApiBaseUrl = () => import.meta.env.VITE_API_BASE_URL;
 
+  const getSessionId = (): string => {
+    if (!id) return "";
+    const key = `interview_session_${id}`;
+    let sid = sessionStorage.getItem(key);
+    if (!sid) {
+      sid = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      sessionStorage.setItem(key, sid);
+    }
+    return sid;
+  };
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem("token");
 
@@ -261,6 +301,7 @@ const InterviewPage: React.FC = () => {
     return {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      "X-Session-Id": getSessionId(),
     };
   };
 
@@ -292,6 +333,18 @@ const InterviewPage: React.FC = () => {
             }),
           },
         );
+
+        if (response.status === 409) {
+          setSessionConflictModalOpen(true);
+          liveServiceRef.current?.disconnect();
+          return;
+        }
+
+        if (response.status === 401) {
+          liveServiceRef.current?.disconnect();
+          navigate("/login");
+          return;
+        }
 
         const data = await response.json();
 
@@ -489,6 +542,9 @@ const InterviewPage: React.FC = () => {
       } catch (error) {
         console.warn("[Live Interview] Error during complete call:", error);
       } finally {
+        if (id) {
+          sessionStorage.removeItem(`interview_session_${id}`);
+        }
         // Invalidate interview list and dashboard caches
         invalidateInterviews();
         invalidateDashboard();
@@ -541,6 +597,9 @@ const InterviewPage: React.FC = () => {
       } catch (err) {
         console.warn("[Live Interview] Error during leave call:", err);
       } finally {
+        if (id) {
+          sessionStorage.removeItem(`interview_session_${id}`);
+        }
         invalidateInterviews();
         invalidateDashboard();
       }
@@ -1120,6 +1179,21 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           },
         );
 
+        if (response.status === 409) {
+          if (mounted) setSessionConflictModalOpen(true);
+          return;
+        }
+
+        if (response.status === 401) {
+          navigate("/login");
+          return;
+        }
+
+        if (response.status === 404) {
+          navigate("/dashboard");
+          return;
+        }
+
         if (!response.ok) return;
 
         const data = await response.json();
@@ -1244,6 +1318,11 @@ Begin the interview now with a brief professional introduction and Question 1.`,
             headers: getAuthHeaders(),
           },
         );
+
+        if (liveStartResponse.status === 409) {
+          setSessionConflictModalOpen(true);
+          return;
+        }
 
         const liveStartData = await liveStartResponse.json();
 
@@ -3088,6 +3167,48 @@ Begin the interview now with a brief professional introduction and Question 1.`,
               py: 1,
               borderRadius: "8px",
               boxShadow: "0 4px 14px rgba(37, 99, 235, 0.35)",
+              "&:hover": {
+                backgroundColor: "#1d4ed8",
+              },
+            }}
+          >
+            Return to Dashboard
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Concurrent Session Protection Modal */}
+      <Dialog
+        open={sessionConflictModalOpen}
+        onClose={() => navigate("/dashboard")}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "14px",
+              p: 1.5,
+              maxWidth: "460px",
+              boxShadow: "0 16px 40px rgba(15, 23, 42, 0.18)",
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, color: "#0f172a", fontSize: "19px", pb: 1 }}>
+          Active Session on Another Device
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ color: "#475569", fontSize: "14px", lineHeight: 1.6 }}>
+            This interview session is currently active in another browser window, tab, or device. To prevent lost answers and interview state desynchronization, simultaneous multi-device access is not permitted.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 1, justifyContent: "flex-end", gap: 1 }}>
+          <Button
+            onClick={() => navigate("/dashboard")}
+            variant="contained"
+            sx={{
+              backgroundColor: "#2563eb",
+              textTransform: "none",
+              fontWeight: 700,
+              borderRadius: "8px",
               "&:hover": {
                 backgroundColor: "#1d4ed8",
               },

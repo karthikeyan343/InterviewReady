@@ -7,6 +7,9 @@ export interface IInterview extends Document {
   interviewType: "Technical" | "Behavioral" | "Mixed";
   difficulty: "Easy" | "Medium" | "Hard";
   status: "Not Started" | "In Progress" | "Completed" | "Abandoned" | "Left";
+  activeSessionId?: string | null;
+  activeSessionLastHeartbeat?: Date | null;
+  activeSessionDeviceId?: string | null;
   startedAt?: Date;
   endedAt?: Date;
   createdAt: Date;
@@ -55,6 +58,21 @@ const interviewSchema = new Schema<IInterview>(
         "Left",
       ],
       default: "Not Started",
+    },
+
+    activeSessionId: {
+      type: String,
+      default: null,
+    },
+
+    activeSessionLastHeartbeat: {
+      type: Date,
+      default: null,
+    },
+
+    activeSessionDeviceId: {
+      type: String,
+      default: null,
     },
 
     startedAt: {

@@ -9,8 +9,90 @@ import {
 } from "./openrouterInterviewReportService.js";
 
 import {
+  generateInterviewReportWithGemini,
+} from "./geminiInterviewReportService.js";
+
+import {
   getInterviewQuestionLimit,
 } from "../utils/interviewConfig.js";
+
+export class SessionConflictError extends Error {
+  statusCode: number;
+  code: string;
+  constructor(
+    message = "This interview session is currently active on another device or tab. Simultaneous access is prevented to protect interview state."
+  ) {
+    super(message);
+    this.name = "SessionConflictError";
+    this.statusCode = 409;
+    this.code = "SESSION_CONFLICT";
+  }
+}
+
+export const SESSION_HEARTBEAT_TIMEOUT_MS = 45_000;
+
+export const verifyAndAcquireSession = async (
+  interview: any,
+  sessionId?: string,
+  deviceId?: string
+): Promise<string> => {
+  const now = new Date();
+  const currentActiveSession = interview.activeSessionId;
+  const lastHeartbeat = interview.activeSessionLastHeartbeat;
+
+  const isExpired =
+    !lastHeartbeat ||
+    now.getTime() - new Date(lastHeartbeat).getTime() > SESSION_HEARTBEAT_TIMEOUT_MS;
+
+  if (currentActiveSession && !isExpired) {
+    if (!sessionId || currentActiveSession !== sessionId) {
+      throw new SessionConflictError(
+        "This interview session is currently active on another device or tab. Simultaneous access is prevented to protect interview state."
+      );
+    }
+  }
+
+  const effectiveSessionId =
+    sessionId ||
+    `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  // Atomic lease acquisition to prevent parallel race conditions
+  const expireThreshold = new Date(Date.now() - SESSION_HEARTBEAT_TIMEOUT_MS);
+  const updatedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interview._id,
+      userId: interview.userId,
+      $or: [
+        { activeSessionId: null },
+        { activeSessionId: effectiveSessionId },
+        { activeSessionLastHeartbeat: null },
+        { activeSessionLastHeartbeat: { $lt: expireThreshold } },
+      ],
+    },
+    {
+      $set: {
+        activeSessionId: effectiveSessionId,
+        activeSessionLastHeartbeat: now,
+        ...(deviceId ? { activeSessionDeviceId: deviceId } : {}),
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedInterview) {
+    throw new SessionConflictError(
+      "Concurrent session acquisition conflict. Another device acquired the session lease."
+    );
+  }
+
+  interview.activeSessionId = effectiveSessionId;
+  interview.activeSessionLastHeartbeat = now;
+  if (deviceId) {
+    interview.activeSessionDeviceId = deviceId;
+  }
+
+  return effectiveSessionId;
+};
 
 export interface StartLiveInterviewResult {
   interview: {
@@ -130,14 +212,24 @@ const getInterview = async ({
 export const startLiveInterview = async ({
   interviewId,
   userId,
+  sessionId,
+  deviceId,
 }: {
   interviewId: string;
   userId: string;
+  sessionId?: string;
+  deviceId?: string;
 }): Promise<StartLiveInterviewResult> => {
   const interview = await getInterview({
     interviewId,
     userId,
   });
+
+  if (interview.status === "Completed") {
+    throw new Error("Interview cannot start from Completed status.");
+  }
+
+  await verifyAndAcquireSession(interview, sessionId, deviceId);
 
   if (interview.status === "Not Started") {
     interview.status = "In Progress";
@@ -146,15 +238,17 @@ export const startLiveInterview = async ({
     await interview.save();
 
     console.log(
-      `[Live Interview] Interview ${interviewId} started`
+      `[Live Interview] Interview ${interviewId} started with session ${interview.activeSessionId}`
     );
   } else if (interview.status === "Left") {
     interview.status = "In Progress";
     await interview.save();
 
     console.log(
-      `[Live Interview] Interview ${interviewId} resumed from Left status`
+      `[Live Interview] Interview ${interviewId} resumed from Left status with session ${interview.activeSessionId}`
     );
+  } else {
+    await interview.save();
   }
 
   if (interview.status !== "In Progress") {
@@ -181,9 +275,60 @@ export const startLiveInterview = async ({
   };
 };
 
+export const heartbeatLiveInterview = async ({
+  interviewId,
+  userId,
+  sessionId,
+}: {
+  interviewId: string;
+  userId: string;
+  sessionId?: string;
+}): Promise<{ active: boolean; activeSessionId: string | null; message: string }> => {
+  const interview = await getInterview({
+    interviewId,
+    userId,
+  });
+
+  if (interview.status !== "In Progress") {
+    return {
+      active: false,
+      activeSessionId: null,
+      message: `Interview status is ${interview.status}`,
+    };
+  }
+
+  const now = new Date();
+  const isExpired =
+    !interview.activeSessionLastHeartbeat ||
+    now.getTime() - new Date(interview.activeSessionLastHeartbeat).getTime() >
+      SESSION_HEARTBEAT_TIMEOUT_MS;
+
+  if (interview.activeSessionId && !isExpired) {
+    if (!sessionId || interview.activeSessionId !== sessionId) {
+      throw new SessionConflictError("Session conflict: another device currently owns this interview.");
+    }
+  }
+
+  const effectiveSessionId = sessionId || interview.activeSessionId;
+  if (!effectiveSessionId) {
+    throw new SessionConflictError("Session ID is required to heartbeat an active interview.");
+  }
+
+  interview.activeSessionId = effectiveSessionId;
+  interview.activeSessionLastHeartbeat = now;
+  await interview.save();
+
+  return {
+    active: true,
+    activeSessionId: effectiveSessionId,
+    message: "Session heartbeat acknowledged.",
+  };
+};
+
 export const saveLiveConversationTurn = async ({
   interviewId,
   userId,
+  sessionId,
   speaker,
   text,
   timestamp,
@@ -191,6 +336,7 @@ export const saveLiveConversationTurn = async ({
 }: {
   interviewId: string;
   userId: string;
+  sessionId?: string;
   speaker: "interviewer" | "candidate";
   text: string;
   timestamp?: string | Date;
@@ -206,6 +352,25 @@ export const saveLiveConversationTurn = async ({
       "Interview is not currently in progress."
     );
   }
+
+  // Active session conflict verification
+  const now = new Date();
+  const isExpired =
+    !interview.activeSessionLastHeartbeat ||
+    now.getTime() - new Date(interview.activeSessionLastHeartbeat).getTime() >
+      SESSION_HEARTBEAT_TIMEOUT_MS;
+
+  if (interview.activeSessionId && !isExpired) {
+    if (!sessionId || interview.activeSessionId !== sessionId) {
+      throw new SessionConflictError("Cannot submit turn: interview is actively in progress on another device.");
+    }
+  }
+
+  interview.activeSessionLastHeartbeat = now;
+  if (sessionId && !interview.activeSessionId) {
+    interview.activeSessionId = sessionId;
+  }
+  await interview.save();
 
   const cleanedText = text.trim();
 
@@ -436,12 +601,25 @@ export const executeAsyncReportGeneration = async (
       `[Report Worker] Generating AI report for interview ${interviewId} (${conversation.length} turns, Role: ${interview.role}, Type: ${interview.interviewType}, Difficulty: ${interview.difficulty})...`
     );
 
-    const generatedReport = await generateInterviewReportWithOpenRouter({
-      role: interview.role,
-      interviewType: interview.interviewType,
-      difficulty: interview.difficulty,
-      conversation,
-    });
+    let generatedReport: any;
+    try {
+      generatedReport = await generateInterviewReportWithOpenRouter({
+        role: interview.role,
+        interviewType: interview.interviewType,
+        difficulty: interview.difficulty,
+        conversation,
+      });
+    } catch (openRouterErr: any) {
+      console.warn(
+        `[Report Worker] OpenRouter report generation failed for ${interviewId} (${openRouterErr?.message || openRouterErr}). Falling back to Gemini...`
+      );
+      generatedReport = await generateInterviewReportWithGemini({
+        role: interview.role,
+        interviewType: interview.interviewType,
+        difficulty: interview.difficulty,
+        conversation,
+      });
+    }
 
     await InterviewReport.findOneAndUpdate(
       { interviewId: interview._id, userId },
@@ -489,9 +667,11 @@ export const executeAsyncReportGeneration = async (
 export const completeLiveInterview = async ({
   interviewId,
   userId,
+  sessionId,
 }: {
   interviewId: string;
   userId: string;
+  sessionId?: string;
 }): Promise<CompleteLiveInterviewResult> => {
   const interview = await getInterview({
     interviewId,
@@ -514,10 +694,27 @@ export const completeLiveInterview = async ({
 
   const answeredCount = candidateTurns.length;
 
-  // Mark interview completed in database if not already completed
+  // Active session conflict verification on completion
+  const now = new Date();
+  const isExpired =
+    !interview.activeSessionLastHeartbeat ||
+    now.getTime() - new Date(interview.activeSessionLastHeartbeat).getTime() >
+      SESSION_HEARTBEAT_TIMEOUT_MS;
+
+  if (interview.status === "In Progress" && interview.activeSessionId && !isExpired) {
+    if (!sessionId || interview.activeSessionId !== sessionId) {
+      throw new SessionConflictError(
+        "Cannot complete interview: active session is currently running on another device."
+      );
+    }
+  }
+
+  // Mark interview completed in database if not already completed and clear active session
   if (interview.status !== "Completed") {
     interview.status = "Completed";
     interview.endedAt = new Date();
+    interview.activeSessionId = null;
+    interview.activeSessionLastHeartbeat = null;
     await interview.save();
   }
 
@@ -790,9 +987,11 @@ export const getInterviewReportStatus = async ({
 export const leaveLiveInterview = async ({
   interviewId,
   userId,
+  sessionId,
 }: {
   interviewId: string;
   userId: string;
+  sessionId?: string;
 }): Promise<{
   success: boolean;
   message: string;
@@ -811,12 +1010,28 @@ export const leaveLiveInterview = async ({
     userId,
   });
 
+  const now = new Date();
+  const isExpired =
+    !interview.activeSessionLastHeartbeat ||
+    now.getTime() - new Date(interview.activeSessionLastHeartbeat).getTime() >
+      SESSION_HEARTBEAT_TIMEOUT_MS;
+
+  if (interview.status === "In Progress" && interview.activeSessionId && !isExpired) {
+    if (!sessionId || interview.activeSessionId !== sessionId) {
+      throw new SessionConflictError(
+        "Cannot leave interview: active session is currently running on another device."
+      );
+    }
+  }
+
   if (interview.status !== "Completed") {
     interview.status = "Left";
+    interview.activeSessionId = null;
+    interview.activeSessionLastHeartbeat = null;
     await interview.save();
 
     console.log(
-      `[Live Interview] Interview ${interviewId} marked as Left`
+      `[Live Interview] Interview ${interviewId} marked as Left and session released`
     );
   }
 

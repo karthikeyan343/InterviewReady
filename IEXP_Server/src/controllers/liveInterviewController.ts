@@ -13,6 +13,9 @@ import {
   completeLiveInterview,
   getLiveInterviewSession,
   leaveLiveInterview,
+  heartbeatLiveInterview,
+  SessionConflictError,
+  SESSION_HEARTBEAT_TIMEOUT_MS,
 } from "../services/liveInterviewService.js";
 
 import { getInterviewQuestionLimit } from "../utils/interviewConfig.js";
@@ -76,6 +79,24 @@ export const createLiveInterviewToken = async (
         message: `Interview cannot start from ${interview.status} status.`,
       });
       return;
+    }
+
+    const rawSessionId = req.headers["x-session-id"] || req.body?.sessionId;
+    const sessionId = typeof rawSessionId === "string" ? rawSessionId : undefined;
+    const now = new Date();
+    const isExpired =
+      !interview.activeSessionLastHeartbeat ||
+      now.getTime() - new Date(interview.activeSessionLastHeartbeat).getTime() >
+        SESSION_HEARTBEAT_TIMEOUT_MS;
+
+    if (interview.activeSessionId && !isExpired) {
+      if (!sessionId || interview.activeSessionId !== sessionId) {
+        res.status(409).json({
+          message: "This interview session is currently active on another device or tab. Simultaneous access is prevented to protect interview state.",
+          code: "SESSION_CONFLICT",
+        });
+        return;
+      }
     }
 
     const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -479,14 +500,28 @@ export const startLiveInterviewController = async (
       return;
     }
 
+    const rawSessionId = req.headers["x-session-id"] || req.body?.sessionId;
+    const sessionId = typeof rawSessionId === "string" ? rawSessionId : undefined;
+    const deviceId = typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined;
+
     const result = await startLiveInterview({
       interviewId,
       userId: req.userId,
+      sessionId,
+      deviceId,
     });
 
     res.status(200).json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Start live interview error:", error);
+
+    if (error instanceof SessionConflictError || error?.code === "SESSION_CONFLICT") {
+      res.status(409).json({
+        message: error.message,
+        code: "SESSION_CONFLICT",
+      });
+      return;
+    }
 
     const message =
       error instanceof Error
@@ -563,9 +598,13 @@ export const saveLiveConversationTurnController = async (
       return;
     }
 
+    const rawSessionId = req.headers["x-session-id"] || req.body?.sessionId;
+    const sessionId = typeof rawSessionId === "string" ? rawSessionId : undefined;
+
     const result = await saveLiveConversationTurn({
       interviewId,
       userId: req.userId,
+      sessionId,
       speaker,
       text: text.trim(),
       timestamp,
@@ -573,11 +612,19 @@ export const saveLiveConversationTurnController = async (
     });
 
     res.status(201).json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       "Save live conversation turn error:",
       error
     );
+
+    if (error instanceof SessionConflictError || error?.code === "SESSION_CONFLICT") {
+      res.status(409).json({
+        message: error.message,
+        code: "SESSION_CONFLICT",
+      });
+      return;
+    }
 
     const message =
       error instanceof Error
@@ -626,17 +673,29 @@ export const completeLiveInterviewController = async (
       return;
     }
 
+    const rawSessionId = req.headers["x-session-id"] || req.body?.sessionId;
+    const sessionId = typeof rawSessionId === "string" ? rawSessionId : undefined;
+
     const result = await completeLiveInterview({
       interviewId,
       userId: req.userId,
+      sessionId,
     });
 
     res.status(200).json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error(
       "Complete live interview error:",
       error
     );
+
+    if (error instanceof SessionConflictError || error?.code === "SESSION_CONFLICT") {
+      res.status(409).json({
+        message: error.message,
+        code: "SESSION_CONFLICT",
+      });
+      return;
+    }
 
     const message =
       error instanceof Error
@@ -739,14 +798,26 @@ export const leaveLiveInterviewController = async (
       return;
     }
 
+    const rawSessionId = req.headers["x-session-id"] || req.body?.sessionId;
+    const sessionId = typeof rawSessionId === "string" ? rawSessionId : undefined;
+
     const result = await leaveLiveInterview({
       interviewId,
       userId: req.userId,
+      sessionId,
     });
 
     res.status(200).json(result);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Leave live interview error:", error);
+
+    if (error instanceof SessionConflictError || error?.code === "SESSION_CONFLICT") {
+      res.status(409).json({
+        message: error.message,
+        code: "SESSION_CONFLICT",
+      });
+      return;
+    }
 
     const message =
       error instanceof Error
@@ -755,6 +826,60 @@ export const leaveLiveInterviewController = async (
 
     res.status(400).json({
       message,
+    });
+  }
+};
+
+export const heartbeatLiveInterviewController = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({
+        message: "Authentication required.",
+      });
+      return;
+    }
+
+    const rawId = req.params.id;
+    const interviewId =
+      typeof rawId === "string"
+        ? rawId
+        : Array.isArray(rawId)
+          ? rawId[0]
+          : undefined;
+
+    if (!interviewId || !mongoose.Types.ObjectId.isValid(interviewId)) {
+      res.status(400).json({
+        message: "Valid interview ID is required.",
+      });
+      return;
+    }
+
+    const rawSessionId = req.headers["x-session-id"] || req.body?.sessionId;
+    const sessionId = typeof rawSessionId === "string" ? rawSessionId : undefined;
+
+    const result = await heartbeatLiveInterview({
+      interviewId,
+      userId: req.userId,
+      sessionId,
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    console.error("Heartbeat live interview error:", error);
+
+    if (error instanceof SessionConflictError || error?.code === "SESSION_CONFLICT") {
+      res.status(409).json({
+        message: error.message,
+        code: "SESSION_CONFLICT",
+      });
+      return;
+    }
+
+    res.status(400).json({
+      message: error instanceof Error ? error.message : "Heartbeat failed.",
     });
   }
 };

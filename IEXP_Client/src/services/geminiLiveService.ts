@@ -106,6 +106,10 @@ class GeminiLiveService {
     this.isConnecting = true;
 
     try {
+      const sessionId =
+        sessionStorage.getItem(`interview_session_${interviewId}`) ||
+        sessionStorage.getItem("interview_session_id") ||
+        "";
       const response = await fetch(
         `${API_BASE_URL}/interviews/${interviewId}/live-token`,
         {
@@ -113,6 +117,7 @@ class GeminiLiveService {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            ...(sessionId ? { "X-Session-Id": sessionId } : {}),
           },
         },
       );

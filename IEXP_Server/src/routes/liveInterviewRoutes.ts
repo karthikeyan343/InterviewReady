@@ -9,6 +9,7 @@ import {
   completeLiveInterviewController,
   getLiveInterviewSessionController,
   leaveLiveInterviewController,
+  heartbeatLiveInterviewController,
 } from "../controllers/liveInterviewController.js";
 
 const router = Router();
@@ -35,6 +36,12 @@ router.post(
   "/:id/live/turn",
   protect,
   saveLiveConversationTurnController
+);
+
+router.post(
+  "/:id/live/heartbeat",
+  protect,
+  heartbeatLiveInterviewController
 );
 
 router.post(

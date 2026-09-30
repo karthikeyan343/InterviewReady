@@ -12,14 +12,21 @@ const googleClient = new OAuth2Client(
 
 export const registerUser = async (
   req: Request,
-  res: Response
+  res: Response 
 ): Promise<void> => {
   try {
     const { name, email, password } = req.body;
 
-    if (!name || !email || !password) {
+    if (
+      typeof name !== "string" ||
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      !name.trim() ||
+      !email.trim() ||
+      !password
+    ) {
       res.status(400).json({
-        message: "Name, email and password are required",
+        message: "Name, email and password are required and must be valid text",
       });
       return;
     }
@@ -32,6 +39,14 @@ export const registerUser = async (
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(normalizedEmail)) {
+      res.status(400).json({
+        message: "Please enter a valid email address",
+      });
+      return;
+    }
+
     const escapedEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     const existingUser = await User.findOne({
@@ -78,7 +93,12 @@ export const loginUser = async (
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      !email.trim() ||
+      !password
+    ) {
       res.status(400).json({
         message: "Email and password are required",
       });
@@ -164,7 +184,7 @@ export const googleLoginUser = async (
     const { credential, flow = "login", mode } = req.body;
     const isRegister = flow === "register" || mode === "register";
 
-    if (!credential) {
+    if (typeof credential !== "string" || !credential.trim()) {
       res.status(400).json({
         message: "Google credential is required",
       });
@@ -181,7 +201,7 @@ export const googleLoginUser = async (
     }
 
     const ticket = await googleClient.verifyIdToken({
-      idToken: credential,
+      idToken: credential.trim(),
       audience: googleClientId,
     });
 
@@ -226,14 +246,25 @@ export const googleLoginUser = async (
       ],
     });
 
-    if (isRegister) {
-      if (user) {
-        res.status(409).json({
-          message: "Email is already registered. Please try with a different email.",
-        });
-        return;
+    let isNewUser = false;
+
+    if (user) {
+      let shouldSave = false;
+
+      if (!user.googleId) {
+        user.googleId = googleId;
+        shouldSave = true;
       }
 
+      if (picture && user.avatar !== picture) {
+        user.avatar = picture;
+        shouldSave = true;
+      }
+
+      if (shouldSave) {
+        await user.save();
+      }
+    } else {
       user = await User.create({
         name: name?.trim() || normalizedEmail.split("@")[0],
         email: normalizedEmail,
@@ -241,37 +272,7 @@ export const googleLoginUser = async (
         avatar: picture,
         authProvider: "google",
       });
-    } else {
-      if (user) {
-        let shouldSave = false;
-
-        if (!user.googleId) {
-          user.googleId = googleId;
-          shouldSave = true;
-        }
-
-        if (picture && user.avatar !== picture) {
-          user.avatar = picture;
-          shouldSave = true;
-        }
-
-        if (!user.authProvider) {
-          user.authProvider = "google";
-          shouldSave = true;
-        }
-
-        if (shouldSave) {
-          await user.save();
-        }
-      } else {
-        user = await User.create({
-          name: name?.trim() || normalizedEmail.split("@")[0],
-          email: normalizedEmail,
-          googleId,
-          avatar: picture,
-          authProvider: "google",
-        });
-      }
+      isNewUser = true;
     }
 
     const jwtSecret = process.env.JWT_SECRET;
@@ -293,8 +294,8 @@ export const googleLoginUser = async (
       }
     );
 
-    res.status(isRegister ? 201 : 200).json({
-      message: isRegister ? "Google registration successful" : "Google login successful",
+    res.status(isNewUser ? 201 : 200).json({
+      message: isNewUser ? "Google registration successful" : "Google login successful",
       token,
       user: {
         id: user._id,

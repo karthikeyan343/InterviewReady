@@ -19,12 +19,49 @@ const app: Express = express();
 
 const PORT = Number(process.env.PORT) || 5000;
 
+const defaultAllowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://localhost:4173",
+];
+
+const envAllowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(",").map((s) => s.trim().replace(/\/$/, ""))
+  : [];
+
+const allowedOriginsSet = new Set([...defaultAllowedOrigins, ...envAllowedOrigins]);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, server-to-server, curl)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const normalizedOrigin = origin.replace(/\/$/, "");
+
+      if (allowedOriginsSet.has(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      // Allow all Vercel preview and production deployments (*.vercel.app)
+      if (/^https:\/\/[a-zA-Z0-9._-]+\.vercel\.app$/.test(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      return callback(null, false);
+    },
     credentials: true,
   })
 );
+
+// Cross-Origin-Opener-Policy header to permit Google Sign-In popup communication
+app.use((_req, res, next) => {
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  next();
+});
 
 app.use(express.json());
 

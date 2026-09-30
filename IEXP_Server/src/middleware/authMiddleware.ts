@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -33,7 +34,11 @@ export const protect = (
 
     const decoded = jwt.verify(token, jwtSecret);
 
-    if (typeof decoded === "string" || !decoded.userId) {
+    if (
+      typeof decoded === "string" ||
+      !decoded.userId ||
+      !mongoose.Types.ObjectId.isValid(decoded.userId)
+    ) {
       res.status(401).json({
         message: "Invalid token",
       });
