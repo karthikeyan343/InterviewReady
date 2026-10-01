@@ -97,6 +97,10 @@ export const createLiveInterviewToken = async (
         });
         return;
       }
+    } else if (sessionId) {
+      interview.activeSessionId = sessionId;
+      interview.activeSessionLastHeartbeat = now;
+      await interview.save();
     }
 
     const geminiApiKey = process.env.GEMINI_API_KEY;

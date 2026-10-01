@@ -367,7 +367,7 @@ export const saveLiveConversationTurn = async ({
   }
 
   interview.activeSessionLastHeartbeat = now;
-  if (sessionId && !interview.activeSessionId) {
+  if (sessionId && (!interview.activeSessionId || isExpired)) {
     interview.activeSessionId = sessionId;
   }
   await interview.save();

@@ -1310,32 +1310,31 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
       let configuredLimit = totalQuestionsRef.current || 20;
 
-      if (!isResume || resumeSessionData?.interview?.status === "Left") {
-        const liveStartResponse = await fetch(
-          `${getApiBaseUrl()}/interviews/${id}/live/start`,
-          {
-            method: "POST",
-            headers: getAuthHeaders(),
-          },
-        );
+      // Always verify and acquire the backend session lease (fresh start, resume from Left, or resume from In Progress)
+      const liveStartResponse = await fetch(
+        `${getApiBaseUrl()}/interviews/${id}/live/start`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+        },
+      );
 
-        if (liveStartResponse.status === 409) {
-          setSessionConflictModalOpen(true);
-          return;
-        }
-
-        const liveStartData = await liveStartResponse.json();
-
-        if (!liveStartResponse.ok) {
-          throw new Error(
-            liveStartData.message || "Failed to start the live interview.",
-          );
-        }
-
-        configuredLimit = liveStartData.interview?.questionLimit ?? configuredLimit;
-        totalQuestionsRef.current = configuredLimit;
-        setTotalQuestions(configuredLimit);
+      if (liveStartResponse.status === 409) {
+        setSessionConflictModalOpen(true);
+        return;
       }
+
+      const liveStartData = await liveStartResponse.json();
+
+      if (!liveStartResponse.ok) {
+        throw new Error(
+          liveStartData.message || "Failed to start the live interview.",
+        );
+      }
+
+      configuredLimit = liveStartData.interview?.questionLimit ?? configuredLimit;
+      totalQuestionsRef.current = configuredLimit;
+      setTotalQuestions(configuredLimit);
 
       setStarted(true);
       setAiStatus("Thinking");
