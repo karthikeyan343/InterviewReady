@@ -80,6 +80,9 @@ const InterviewPage: React.FC = () => {
   );
 
   const [isSavingTurn, setIsSavingTurn] = useState(false);
+  const isSavingTurnRef = useRef(false);
+  const candidateTurnFinalizedForCurrentQuestionRef = useRef(false);
+  const authoritativeSessionIdRef = useRef<string | null>(null);
   const [isCompletingInterview, setIsCompletingInterview] = useState(false);
 
   const turnSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -106,7 +109,7 @@ const InterviewPage: React.FC = () => {
   const [showEndEarlyModal, setShowEndEarlyModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
-  // 20-second candidate no-answer countdown
+  // 60-second candidate no-answer countdown
   const [candidateCountdown, setCandidateCountdown] = useState<number | null>(null);
   const candidateNoAnswerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const candidateCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -151,6 +154,10 @@ const InterviewPage: React.FC = () => {
 
     const heartbeatInterval = setInterval(async () => {
       try {
+        if (isSavingTurnRef.current) {
+          console.log("[Live Interview] Skipping heartbeat ping: conversation turn save in progress.");
+          return;
+        }
         const response = await fetch(
           `${getApiBaseUrl()}/interviews/${id}/live/heartbeat`,
           {
@@ -212,7 +219,7 @@ const InterviewPage: React.FC = () => {
 
       streamRef.current = null;
     };
-  }, []);
+  }, [id]);
 
   // Video element preview binding and recovery on camera toggle / stream / viewport change
   useEffect(() => {
@@ -283,11 +290,15 @@ const InterviewPage: React.FC = () => {
   const getSessionId = (): string => {
     if (!id) return "";
     const key = `interview_session_${id}`;
-    let sid = sessionStorage.getItem(key);
+    let sid = authoritativeSessionIdRef.current || sessionStorage.getItem(key);
     if (!sid) {
+      if (started) {
+        console.warn(`[Live Interview] Session ID missing from storage for active interview ${id}`);
+      }
       sid = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       sessionStorage.setItem(key, sid);
     }
+    authoritativeSessionIdRef.current = sid;
     return sid;
   };
 
@@ -318,6 +329,7 @@ const InterviewPage: React.FC = () => {
 
     const task = async () => {
       setIsSavingTurn(true);
+      isSavingTurnRef.current = true;
 
       try {
         const response = await fetch(
@@ -357,6 +369,7 @@ const InterviewPage: React.FC = () => {
         console.log(`[Live Interview] Saved ${speaker} turn:`, data);
       } finally {
         setIsSavingTurn(false);
+        isSavingTurnRef.current = false;
       }
     };
 
@@ -366,6 +379,8 @@ const InterviewPage: React.FC = () => {
 
     return turnSaveQueueRef.current;
   };
+
+  const CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS = 60;
 
   const clearCandidateNoAnswerTimeout = () => {
     if (candidateNoAnswerTimeoutRef.current) {
@@ -377,7 +392,9 @@ const InterviewPage: React.FC = () => {
       candidateCountdownIntervalRef.current = null;
     }
     setCandidateCountdown(null);
-    console.log("[Live Interview] Candidate timer cleared.");
+    console.log(
+      `[Live Interview] Candidate timer cleared for Question ${interviewerQuestionCountRef.current}. Candidate speaking: ${isCandidateSpeakingTurnRef.current}`
+    );
   };
 
   const startCandidateNoAnswerTimeout = () => {
@@ -386,15 +403,19 @@ const InterviewPage: React.FC = () => {
       interviewCompletedRef.current ||
       waitingForClosingStatementRef.current ||
       geminiSpeakingRef.current ||
-      !started
+      !started ||
+      candidateTurnFinalizedForCurrentQuestionRef.current ||
+      isProcessingSkipRef.current
     ) {
       return;
     }
 
-    console.log("[Live Interview] Candidate timer started (20s).");
+    console.log(
+      `[Live Interview] Candidate timer started (${CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS}s) for Question ${interviewerQuestionCountRef.current}. Finalized: ${candidateTurnFinalizedForCurrentQuestionRef.current}`
+    );
     isProcessingSkipRef.current = false;
-    setCandidateCountdown(20);
-    let remaining = 20;
+    setCandidateCountdown(CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS);
+    let remaining = CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS;
 
     candidateCountdownIntervalRef.current = setInterval(() => {
       remaining -= 1;
@@ -416,18 +437,25 @@ const InterviewPage: React.FC = () => {
         waitingForClosingStatementRef.current ||
         geminiSpeakingRef.current ||
         isProcessingSkipRef.current ||
+        candidateTurnFinalizedForCurrentQuestionRef.current ||
         isCandidateSpeakingTurnRef.current
       ) {
+        console.log(
+          `[Live Interview] Candidate timeout ignored for Question ${interviewerQuestionCountRef.current}: finalized=${candidateTurnFinalizedForCurrentQuestionRef.current}, speaking=${isCandidateSpeakingTurnRef.current}`
+        );
         return;
       }
 
+      // Mark the current candidate turn/question as finalized / auto-skipped
       isProcessingSkipRef.current = true;
+      candidateTurnFinalizedForCurrentQuestionRef.current = true;
+
       console.warn(
-        `[Live Interview] Candidate no-answer 20s timeout reached for Question ${interviewerQuestionCountRef.current}. Marking question skipped.`,
+        `[Live Interview] Candidate no-answer ${CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS}s timeout fired for Question ${interviewerQuestionCountRef.current}. Finalizing turn as skipped.`
       );
 
       setCandidateTranscript(
-        "Question skipped (no response received within 20 seconds).",
+        `Question skipped (no response received within ${CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS} seconds).`,
       );
 
       void saveConversationTurn("candidate", "[Skipped / No Answer]", false).catch(
@@ -449,12 +477,12 @@ const InterviewPage: React.FC = () => {
         );
       } else {
         liveServiceRef.current?.sendText(
-          "The candidate did not provide an answer within 20 seconds. The question was skipped. Please ask the next question now.",
+          `The candidate did not provide an answer within ${CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS} seconds. The question was skipped. Please ask the next question now.`,
         );
       }
 
       startGeminiIdleWatchdog();
-    }, 20000);
+    }, CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS * 1000);
   };
 
   const clearGeminiIdleWatchdog = () => {
@@ -872,6 +900,9 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         setAiStatus("Listening");
         isCandidateSpeakingTurnRef.current = true;
         clearCandidateNoAnswerTimeout();
+        console.log(
+          `[Live Interview] Candidate transcript received for Question ${interviewerQuestionCountRef.current}: "${text.substring(0, 50)}..."`
+        );
         setCandidateTranscript(text);
       }
     },
@@ -891,14 +922,27 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         return;
       }
 
+      // Check if this question's candidate turn was already finalized (or auto-skipped)
+      if (candidateTurnFinalizedForCurrentQuestionRef.current) {
+        console.warn(
+          `[Live Interview] Discarding late candidate transcript for Question ${interviewerQuestionCountRef.current} because question was already finalized/skipped: "${cleanedText}"`
+        );
+        isCandidateSpeakingTurnRef.current = false;
+        return;
+      }
+
       if (lastSavedCandidateTextRef.current === cleanedText) {
         return;
       }
 
+      // Mark this question's candidate turn as finalized
+      candidateTurnFinalizedForCurrentQuestionRef.current = true;
       lastSavedCandidateTextRef.current = cleanedText;
       candidateAnswerCountRef.current += 1;
       isCandidateSpeakingTurnRef.current = false;
-      console.log("[Live Interview] Candidate turn finalized:", cleanedText);
+      console.log(
+        `[Live Interview] Candidate turn submitted for Question ${interviewerQuestionCountRef.current}: "${cleanedText}"`
+      );
 
       // Keep the current finalized answer visible in UI until next candidate speech starts
       setCandidateTranscript(cleanedText);
@@ -982,6 +1026,8 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
       if (isReStatingPendingQuestionRef.current) {
         isReStatingPendingQuestionRef.current = false;
+        candidateTurnFinalizedForCurrentQuestionRef.current = false;
+        isProcessingSkipRef.current = false;
         console.log(
           `[Live Interview] Re-stated unanswered Question ${interviewerQuestionCountRef.current}. Question count preserved.`,
         );
@@ -1013,6 +1059,9 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       const isQuestion = !isClosingStatement;
 
       if (isQuestion) {
+        candidateTurnFinalizedForCurrentQuestionRef.current = false;
+        isProcessingSkipRef.current = false;
+
         interviewerQuestionCountRef.current += 1;
         const questionNumber = interviewerQuestionCountRef.current;
         setCurrentQuestion(questionNumber);
@@ -1101,9 +1150,9 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         liveServiceRef.current?.resumeMicrophone();
       }
 
-      if (!interviewCompletedRef.current) {
+      if (!interviewCompletedRef.current && !candidateTurnFinalizedForCurrentQuestionRef.current) {
         setAiStatus("Listening");
-        // Start 20-second candidate no-answer timeout now that Gemini has finished speaking
+        // Start candidate no-answer timeout now that Gemini has finished speaking
         startCandidateNoAnswerTimeout();
       }
     },
@@ -1331,6 +1380,17 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           liveStartData.message || "Failed to start the live interview.",
         );
       }
+
+      if (liveStartData.sessionId && id) {
+        console.log(
+          `[Live Interview] Storing authoritative backend session ID: ${liveStartData.sessionId}`,
+        );
+        authoritativeSessionIdRef.current = liveStartData.sessionId;
+        sessionStorage.setItem(`interview_session_${id}`, liveStartData.sessionId);
+      }
+
+      candidateTurnFinalizedForCurrentQuestionRef.current = false;
+      isProcessingSkipRef.current = false;
 
       configuredLimit = liveStartData.interview?.questionLimit ?? configuredLimit;
       totalQuestionsRef.current = configuredLimit;
@@ -2132,14 +2192,14 @@ Begin the interview now with a brief professional introduction and Question 1.`,
                         py: "1px",
                         borderRadius: "4px",
                         backgroundColor:
-                          candidateCountdown <= 5
+                          candidateCountdown <= 10
                             ? "rgba(239, 68, 68, 0.2)"
                             : "rgba(230, 155, 53, 0.2)",
                         border: "1px solid",
                         borderColor:
-                          candidateCountdown <= 5 ? "#ef4444" : "#e69b35",
+                          candidateCountdown <= 10 ? "#ef4444" : "#e69b35",
                         color:
-                          candidateCountdown <= 5 ? "#ff8080" : "#f5b041",
+                          candidateCountdown <= 10 ? "#ff8080" : "#f5b041",
                       }}
                     >
                       <AccessTimeIcon sx={{ fontSize: "11px" }} />
@@ -2564,14 +2624,14 @@ Begin the interview now with a brief professional introduction and Question 1.`,
                       py: "2px",
                       borderRadius: "5px",
                       backgroundColor:
-                        candidateCountdown <= 5
+                        candidateCountdown <= 10
                           ? "rgba(239, 68, 68, 0.2)"
                           : "rgba(230, 155, 53, 0.2)",
                       border: "1px solid",
                       borderColor:
-                        candidateCountdown <= 5 ? "#ef4444" : "#e69b35",
+                        candidateCountdown <= 10 ? "#ef4444" : "#e69b35",
                       color:
-                        candidateCountdown <= 5 ? "#ff8080" : "#f5b041",
+                        candidateCountdown <= 10 ? "#ff8080" : "#f5b041",
                     }}
                   >
                     <AccessTimeIcon sx={{ fontSize: "12px" }} />

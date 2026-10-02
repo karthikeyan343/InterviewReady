@@ -56,6 +56,10 @@ export const verifyAndAcquireSession = async (
     sessionId ||
     `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
+  console.log(
+    `[Live Interview] Session verifyAndAcquire: interviewId=${interview._id}, incomingSessionId=${sessionId || "none"}, effectiveSessionId=${effectiveSessionId}, mongoActiveSessionId=${currentActiveSession || "none"}, isExpired=${isExpired}`
+  );
+
   // Atomic lease acquisition to prevent parallel race conditions
   const expireThreshold = new Date(Date.now() - SESSION_HEARTBEAT_TIMEOUT_MS);
   const updatedInterview = await Interview.findOneAndUpdate(
@@ -104,6 +108,7 @@ export interface StartLiveInterviewResult {
     status: string;
     startedAt?: Date;
   };
+  sessionId: string;
 }
 
 export interface SaveLiveConversationTurnResult {
@@ -229,7 +234,7 @@ export const startLiveInterview = async ({
     throw new Error("Interview cannot start from Completed status.");
   }
 
-  await verifyAndAcquireSession(interview, sessionId, deviceId);
+  const effectiveSessionId = await verifyAndAcquireSession(interview, sessionId, deviceId);
 
   if (interview.status === "Not Started") {
     interview.status = "In Progress";
@@ -238,14 +243,14 @@ export const startLiveInterview = async ({
     await interview.save();
 
     console.log(
-      `[Live Interview] Interview ${interviewId} started with session ${interview.activeSessionId}`
+      `[Live Interview] Interview ${interviewId} started with session ${effectiveSessionId}`
     );
   } else if (interview.status === "Left") {
     interview.status = "In Progress";
     await interview.save();
 
     console.log(
-      `[Live Interview] Interview ${interviewId} resumed from Left status with session ${interview.activeSessionId}`
+      `[Live Interview] Interview ${interviewId} resumed from Left status with session ${effectiveSessionId}`
     );
   } else {
     await interview.save();
@@ -272,6 +277,7 @@ export const startLiveInterview = async ({
       status: interview.status,
       startedAt: interview.startedAt,
     },
+    sessionId: effectiveSessionId,
   };
 };
 
@@ -284,43 +290,65 @@ export const heartbeatLiveInterview = async ({
   userId: string;
   sessionId?: string;
 }): Promise<{ active: boolean; activeSessionId: string | null; message: string }> => {
-  const interview = await getInterview({
+  const interviewObjectId = validateObjectId(
     interviewId,
+    "interview ID"
+  );
+  const userObjectId = validateObjectId(
     userId,
-  });
+    "user ID"
+  );
 
-  if (interview.status !== "In Progress") {
-    return {
-      active: false,
-      activeSessionId: null,
-      message: `Interview status is ${interview.status}`,
-    };
-  }
-
-  const now = new Date();
-  const isExpired =
-    !interview.activeSessionLastHeartbeat ||
-    now.getTime() - new Date(interview.activeSessionLastHeartbeat).getTime() >
-      SESSION_HEARTBEAT_TIMEOUT_MS;
-
-  if (interview.activeSessionId && !isExpired) {
-    if (!sessionId || interview.activeSessionId !== sessionId) {
-      throw new SessionConflictError("Session conflict: another device currently owns this interview.");
-    }
-  }
-
-  const effectiveSessionId = sessionId || interview.activeSessionId;
-  if (!effectiveSessionId) {
+  if (!sessionId) {
     throw new SessionConflictError("Session ID is required to heartbeat an active interview.");
   }
 
-  interview.activeSessionId = effectiveSessionId;
-  interview.activeSessionLastHeartbeat = now;
-  await interview.save();
+  const now = new Date();
+
+  // Atomically update heartbeat timestamp while ensuring the session lease is currently held by this sessionId
+  const updatedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewObjectId,
+      userId: userObjectId,
+      status: "In Progress",
+      activeSessionId: sessionId,
+    },
+    {
+      $set: {
+        activeSessionLastHeartbeat: now,
+      },
+    },
+    { new: true }
+  );
+
+  if (!updatedInterview) {
+    const existing = await Interview.findOne({
+      _id: interviewObjectId,
+      userId: userObjectId,
+    });
+
+    if (!existing) {
+      throw new Error("Interview not found.");
+    }
+
+    if (existing.status !== "In Progress") {
+      return {
+        active: false,
+        activeSessionId: null,
+        message: `Interview status is ${existing.status}`,
+      };
+    }
+
+    // Session conflict: active session belongs to a different session ID or lease was stolen
+    console.warn(
+      `[Live Session Heartbeat Conflict] Interview: ${interviewId}, incomingSessionId: ${sessionId}, mongoActiveSessionId: ${existing.activeSessionId}`
+    );
+    throw new SessionConflictError("Session conflict: another device currently owns this interview.");
+  }
 
   return {
     active: true,
-    activeSessionId: effectiveSessionId,
+    activeSessionId: sessionId,
     message: "Session heartbeat acknowledged.",
   };
 };
@@ -362,15 +390,28 @@ export const saveLiveConversationTurn = async ({
 
   if (interview.activeSessionId && !isExpired) {
     if (!sessionId || interview.activeSessionId !== sessionId) {
+      console.warn(
+        `[Live Session Turn Conflict] Interview: ${interviewId}, incomingSessionId: ${sessionId}, mongoActiveSessionId: ${interview.activeSessionId}`
+      );
       throw new SessionConflictError("Cannot submit turn: interview is actively in progress on another device.");
     }
   }
 
-  interview.activeSessionLastHeartbeat = now;
-  if (sessionId && (!interview.activeSessionId || isExpired)) {
-    interview.activeSessionId = sessionId;
-  }
-  await interview.save();
+  // Atomically update heartbeat without racing on full document save
+  await Interview.updateOne(
+    {
+      _id: interview._id,
+      userId: interview.userId,
+    },
+    {
+      $set: {
+        activeSessionLastHeartbeat: now,
+        ...(sessionId && (!interview.activeSessionId || isExpired)
+          ? { activeSessionId: sessionId }
+          : {}),
+      },
+    }
+  );
 
   const cleanedText = text.trim();
 

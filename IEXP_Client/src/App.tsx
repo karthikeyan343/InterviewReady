@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useParams } from "react-router-dom";
 
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -14,6 +14,11 @@ import ProfilePage from "./pages/ProfilePage";
 
 import ProtectedRoute from "./component/wrapperComponent/ProtectedRoute";
 import PublicRoute from "./component/wrapperComponent/PublicRoute";
+
+const InterviewRouteWrapper: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  return <InterviewPage key={id} />;
+};
 
 const App: React.FC = () => {
   return (
@@ -64,7 +69,7 @@ const App: React.FC = () => {
           path="/interviews/:id"
           element={
             <ProtectedRoute>
-              <InterviewPage />
+              <InterviewRouteWrapper />
             </ProtectedRoute>
           }
         />
