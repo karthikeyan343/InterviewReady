@@ -31,7 +31,7 @@ export const handleAuthError = (status: number) => {
 export interface RecentInterview {
   id: string;
   role: string;
-  interviewType: "Technical" | "Behavioral" | "Mixed";
+  interviewType: "Technical" | "Resume-Based" | "Mixed" | "Behavioral";
   difficulty: "Easy" | "Medium" | "Hard";
   status: "Not Started" | "In Progress" | "Completed" | "Abandoned" | "Left";
   createdAt: string;
@@ -59,7 +59,7 @@ export interface ReadinessData {
 export interface ContinuePracticeData {
   id: string;
   role: string;
-  interviewType: "Technical" | "Behavioral" | "Mixed";
+  interviewType: "Technical" | "Resume-Based" | "Mixed" | "Behavioral";
   difficulty: "Easy" | "Medium" | "Hard";
   status: "Not Started" | "In Progress" | "Left";
   createdAt: string;

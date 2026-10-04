@@ -11,6 +11,7 @@ export interface LiveMessageHandlers {
   onCandidateSpeechStart?: () => void;
   onInputTranscript?: (text: string) => void;
   onCandidateTurnEnd?: (text: string) => void;
+  onCandidateTurnReset?: () => void;
   onOutputTranscript?: (text: string) => void;
   onSpeakingStart?: () => void;
   onSpeakingEnd?: () => void;
@@ -19,6 +20,14 @@ export interface LiveMessageHandlers {
   onError?: (error: Event | Error) => void;
   onClose?: () => void;
 }
+
+export type CandidateTurnState =
+  | "IDLE"
+  | "WAITING_FOR_ANSWER"
+  | "SPEAKING"
+  | "WAITING_FOR_FINAL_TRANSCRIPT"
+  | "ANSWER_FINALIZED"
+  | "SAVING_ANSWER";
 
 class GeminiLiveService {
   private websocket: WebSocket | null = null;
@@ -67,21 +76,32 @@ class GeminiLiveService {
 
   private outputTranscriptBuffer = "";
 
-  private inputTranscriptBuffer = "";
-
   private candidateSpeechActive = false;
   private candidateSpeechStartedAt = 0;
   private candidateLastVoiceAt = 0;
   private candidateSilenceTimer: ReturnType<typeof setTimeout> | null = null;
   private candidateTurnEndTimer: ReturnType<typeof setTimeout> | null = null;
+  private candidateSafetyTimer: ReturnType<typeof setTimeout> | null = null;
   private candidateTurnEndHandler: ((text: string) => void) | null = null;
   private candidateSpeechStartHandler: (() => void) | null = null;
-  private candidateTurnFinalized = false;
+  private candidateTurnResetHandler: (() => void) | null = null;
+
+  private candidateTurnState: CandidateTurnState = "IDLE";
+  private finalizedInputTranscript = "";
+  private interimInputTranscript = "";
+  private modelResponseReceived = false;
+  private latestResumptionHandle: string | null = null;
+  private readonly candidateSafetyTimeoutMs = 5000;
+
+  private candidateTraceSpeechStartTime = 0;
+  private candidateTraceChunksSentThisTurn = 0;
+  private candidateTraceBytesSentThisTurn = 0;
+  private candidateTraceTotalChunksSent = 0;
+  private candidateTraceTotalBytesSent = 0;
 
   private readonly candidateVadThreshold = 0.014;
   private readonly candidateVadSilenceMs = 1100;
   private readonly candidateVadMinSpeechMs = 300;
-  private readonly candidateTranscriptFlushMs = 750;
 
   async connect(
     interviewId: string,
@@ -174,11 +194,15 @@ class GeminiLiveService {
       this.turnCompleteReceived = false;
       this.microphonePaused = false;
       this.outputTranscriptBuffer = "";
-      this.inputTranscriptBuffer = "";
+      this.finalizedInputTranscript = "";
+      this.interimInputTranscript = "";
+      this.modelResponseReceived = false;
+      this.candidateTurnState = "IDLE";
       this.cancelCandidateVad();
+      this.clearCandidateTurnSafetyTimer();
       this.candidateTurnEndHandler = handlers.onCandidateTurnEnd ?? null;
       this.candidateSpeechStartHandler = handlers.onCandidateSpeechStart ?? null;
-      this.candidateTurnFinalized = false;
+      this.candidateTurnResetHandler = handlers.onCandidateTurnReset ?? null;
       this.scheduledAudioEndTime = 0;
       this.audioLevelHandler = handlers.onAudioLevel ?? null;
       this.stopAudioLevelMonitoring();
@@ -218,12 +242,42 @@ class GeminiLiveService {
       websocket.onopen = () => {
         console.log("Gemini Live WebSocket connected.");
 
-        const setupMessage = {
+        const setupMessage: {
+          setup: {
+            model: string;
+            generationConfig: {
+              responseModalities: string[];
+            };
+            inputAudioTranscription: Record<string, never>;
+            outputAudioTranscription: Record<string, never>;
+            sessionResumption?: {
+              handle: string;
+            };
+          };
+        } = {
           setup: {
             model: `models/${MODEL_NAME}`,
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+            },
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
           },
         };
 
+        if (this.latestResumptionHandle) {
+          setupMessage.setup.sessionResumption = {
+            handle: this.latestResumptionHandle,
+          };
+          console.log(
+            `[CandidateAudioTrace] Setup includes sessionResumption: ${this.latestResumptionHandle.substring(0, 16)}...`,
+          );
+        }
+
+        console.log(
+          "[CandidateAudioTrace] WebSocket onopen, sending setup:",
+          setupMessage,
+        );
         console.log("Sending Gemini Live setup:", setupMessage);
 
         try {
@@ -298,6 +352,10 @@ class GeminiLiveService {
           }
 
           if (message?.setupComplete) {
+            console.log(
+              "[CandidateAudioTrace] setupComplete received:",
+              message.setupComplete,
+            );
             console.log("Gemini Live setup complete.");
 
             this.setupCompleted = true;
@@ -329,6 +387,13 @@ class GeminiLiveService {
           }
 
           if (message?.sessionResumptionUpdate) {
+            const upd = message.sessionResumptionUpdate;
+            if (typeof upd?.newHandle === "string" && upd.newHandle.trim()) {
+              this.latestResumptionHandle = upd.newHandle.trim();
+            }
+            console.log(
+              `[CandidateAudioTrace] session resumption handle changes: resumable=${upd?.resumable}, newHandlePrefix=${this.latestResumptionHandle ? this.latestResumptionHandle.substring(0, 16) + "..." : "none"}`,
+            );
             console.log(
               "Gemini session resumption update:",
               message.sessionResumptionUpdate,
@@ -340,6 +405,10 @@ class GeminiLiveService {
           if (!serverContent) {
             return;
           }
+
+          console.log(
+            `[CandidateAudioTrace] serverContent keys: [${Object.keys(serverContent).join(", ")}]`,
+          );
 
           if (serverContent?.interrupted) {
             console.log("[Live Interview] Gemini generation interrupted.");
@@ -355,12 +424,58 @@ class GeminiLiveService {
             this.emitSpeakingEnd(handlers);
           }
 
+          // Handle interim input transcription for live speech-to-text in UI
+          const interimTranscript = serverContent?.interimInputTranscription?.text;
+          if (typeof interimTranscript === "string" && interimTranscript.trim()) {
+            if (
+              this.candidateTurnState === "WAITING_FOR_ANSWER" ||
+              this.candidateTurnState === "SPEAKING" ||
+              this.candidateTurnState === "WAITING_FOR_FINAL_TRANSCRIPT"
+            ) {
+              this.interimInputTranscript = interimTranscript.trim();
+              const fullDisplay = this.finalizedInputTranscript
+                ? `${this.finalizedInputTranscript} ${this.interimInputTranscript}`
+                : this.interimInputTranscript;
+              console.log(
+                `[CandidateAudioTrace] interim transcription received: length=${interimTranscript.length}`,
+              );
+              handlers.onInputTranscript?.(fullDisplay);
+            }
+          }
+
+          // Handle finalized input transcription
           const inputTranscript = serverContent?.inputTranscription?.text;
 
           if (typeof inputTranscript === "string" && inputTranscript.trim()) {
-            this.inputTranscriptBuffer += inputTranscript;
+            const trimmed = inputTranscript.trim();
+            if (
+              this.candidateTurnState === "WAITING_FOR_ANSWER" ||
+              this.candidateTurnState === "SPEAKING" ||
+              this.candidateTurnState === "WAITING_FOR_FINAL_TRANSCRIPT"
+            ) {
+              this.finalizedInputTranscript = this.finalizedInputTranscript
+                ? `${this.finalizedInputTranscript} ${trimmed}`
+                : trimmed;
+              this.interimInputTranscript = "";
 
-            handlers.onInputTranscript?.(this.inputTranscriptBuffer);
+              console.log(
+                `[CandidateAudioTrace] final input transcription received: chunkLength=${trimmed.length}, totalFinalizedLength=${this.finalizedInputTranscript.length}, state=${this.candidateTurnState}`,
+              );
+
+              handlers.onInputTranscript?.(this.finalizedInputTranscript);
+
+              // If we are waiting for final transcript or model has already begun response, finalize candidate turn now
+              if (
+                this.candidateTurnState === "WAITING_FOR_FINAL_TRANSCRIPT" ||
+                this.modelResponseReceived
+              ) {
+                this.tryFinalizeCandidateTurn();
+              }
+            } else {
+              console.log(
+                `[CandidateAudioTrace] inputTranscription ignored because candidateTurnState is ${this.candidateTurnState}: "${trimmed}"`,
+              );
+            }
           }
 
           const outputTranscript = serverContent?.outputTranscription?.text;
@@ -373,19 +488,15 @@ class GeminiLiveService {
 
           const modelTurnParts = serverContent?.modelTurn?.parts;
 
-          if (
-            (modelTurnParts || outputTranscript) &&
-            !this.candidateTurnFinalized &&
-            this.inputTranscriptBuffer.trim()
-          ) {
-            this.candidateTurnFinalized = true;
-            if (this.candidateTurnEndTimer) {
-              clearTimeout(this.candidateTurnEndTimer);
-              this.candidateTurnEndTimer = null;
+          if (modelTurnParts || outputTranscript) {
+            this.modelResponseReceived = true;
+
+            if (
+              this.candidateTurnState === "WAITING_FOR_FINAL_TRANSCRIPT" &&
+              this.finalizedInputTranscript.trim()
+            ) {
+              this.tryFinalizeCandidateTurn();
             }
-            const answer = this.inputTranscriptBuffer.trim();
-            console.log("[Live Interview] Candidate turn finalized immediately on model response:", answer);
-            this.candidateTurnEndHandler?.(answer);
           }
 
           if (Array.isArray(modelTurnParts)) {
@@ -470,7 +581,15 @@ class GeminiLiveService {
           return;
         }
 
-        console.error("Gemini WebSocket error:", event);
+        console.error("[CandidateAudioTrace] Gemini WebSocket error:", {
+          timestamp: new Date().toISOString(),
+          readyState: websocket.readyState,
+          candidateTurnState: this.candidateTurnState,
+          latestResumptionHandle: this.latestResumptionHandle
+            ? `${this.latestResumptionHandle.substring(0, 16)}...`
+            : null,
+          event,
+        });
 
         handlers.onError?.(event);
 
@@ -484,7 +603,21 @@ class GeminiLiveService {
 
         this.clearSetupTimeout();
         this.clearSpeakingEndTimer();
+        this.clearCandidateTurnSafetyTimer();
 
+        console.log("[CandidateAudioTrace] Gemini WebSocket closed:", {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          readyState: websocket.readyState,
+          timestamp: new Date().toISOString(),
+          candidateTurnState: this.candidateTurnState,
+          latestResumptionHandle: this.latestResumptionHandle
+            ? `${this.latestResumptionHandle.substring(0, 16)}...`
+            : null,
+          totalChunksSent: this.candidateTraceTotalChunksSent,
+          totalBytesSent: this.candidateTraceTotalBytesSent,
+        });
         console.log("Gemini WebSocket closed:", {
           code: event.code,
           reason: event.reason,
@@ -501,7 +634,10 @@ class GeminiLiveService {
 
         this.microphonePaused = false;
         this.outputTranscriptBuffer = "";
-        this.inputTranscriptBuffer = "";
+        this.finalizedInputTranscript = "";
+        this.interimInputTranscript = "";
+        this.candidateTurnState = "IDLE";
+        this.modelResponseReceived = false;
         this.cancelCandidateVad();
 
         this.websocket = null;
@@ -530,12 +666,21 @@ class GeminiLiveService {
     this.speakingEndNotified = true;
     this.isSpeaking = false;
     this.turnCompleteReceived = false;
+    this.modelResponseReceived = false;
+    this.candidateTurnState = "WAITING_FOR_ANSWER";
+    this.finalizedInputTranscript = "";
+    this.interimInputTranscript = "";
+    this.cancelCandidateVad();
+    this.clearCandidateTurnSafetyTimer();
 
     this.clearSpeakingEndTimer();
     this.stopAudioLevelMonitoring();
 
     this.outputTranscriptBuffer = "";
 
+    console.log(
+      "[CandidateAudioTrace] Gemini speaking ended. CandidateTurnState transitioned to WAITING_FOR_ANSWER.",
+    );
     console.log(
       "[Gemini Live] Speaking ended. Candidate microphone can resume.",
     );
@@ -834,13 +979,18 @@ class GeminiLiveService {
     this.outputTranscriptBuffer = "";
     this.turnCompleteReceived = false;
 
-    this.inputTranscriptBuffer = "";
+    this.finalizedInputTranscript = "";
+    this.interimInputTranscript = "";
 
     const message = {
       realtimeInput: {
         text: trimmedText,
       },
     };
+
+    console.log(
+      `[CandidateAudioTrace] continuation prompt sent: promptLength=${trimmedText.length}, wsReadyState=${this.websocket?.readyState}`,
+    );
 
     try {
       this.websocket.send(JSON.stringify(message));
@@ -849,6 +999,37 @@ class GeminiLiveService {
     } catch (error) {
       console.error("Failed to send text to Gemini:", error);
     }
+  }
+
+  private clearCandidateTurnSafetyTimer(): void {
+    if (this.candidateSafetyTimer) {
+      clearTimeout(this.candidateSafetyTimer);
+      this.candidateSafetyTimer = null;
+    }
+  }
+
+  private tryFinalizeCandidateTurn(): void {
+    if (
+      this.candidateTurnState === "ANSWER_FINALIZED" ||
+      this.candidateTurnState === "SAVING_ANSWER"
+    ) {
+      return;
+    }
+
+    const answer = this.finalizedInputTranscript.trim();
+    if (!answer) {
+      return;
+    }
+
+    this.candidateTurnState = "ANSWER_FINALIZED";
+    this.clearCandidateTurnSafetyTimer();
+
+    console.log(
+      `[CandidateAudioTrace] CandidateTurnState transitioned to ANSWER_FINALIZED: candidateTextLength=${answer.length}, answer="${answer.substring(0, 60)}..."`,
+    );
+    console.log("[Live Interview] Candidate turn finalized:", answer);
+
+    this.candidateTurnEndHandler?.(answer);
   }
 
   private cancelCandidateVad(): void {
@@ -876,6 +1057,10 @@ class GeminiLiveService {
       return;
     }
 
+    console.log(
+      `[CandidateAudioTrace] sendAudioStreamEnd called, wsReadyState=${this.websocket?.readyState}`,
+    );
+
     try {
       this.websocket.send(
         JSON.stringify({
@@ -892,30 +1077,53 @@ class GeminiLiveService {
   }
 
   private finishCandidateTurn(): void {
+    const speechEndTime = Date.now();
+    console.log(
+      `[CandidateAudioTrace] CandidateTurnState transitioning to WAITING_FOR_FINAL_TRANSCRIPT. speechEnd timestamp: ${speechEndTime}, durationMs: ${speechEndTime - this.candidateTraceSpeechStartTime}, chunksSentThisTurn: ${this.candidateTraceChunksSentThisTurn}, bytesSentThisTurn: ${this.candidateTraceBytesSentThisTurn}, transcriptBufferLength: ${this.finalizedInputTranscript.length}, wsReadyState: ${this.websocket?.readyState}`,
+    );
     this.candidateSpeechActive = false;
     this.microphonePaused = true;
     this.sendAudioStreamEnd();
 
-    if (this.candidateTurnEndTimer) {
-      clearTimeout(this.candidateTurnEndTimer);
+    // If finalized input transcript is already present, finalize candidate turn immediately
+    if (this.finalizedInputTranscript.trim()) {
+      this.tryFinalizeCandidateTurn();
+      return;
     }
 
-    this.candidateTurnEndTimer = setTimeout(() => {
-      this.candidateTurnEndTimer = null;
+    // Otherwise, transition to WAITING_FOR_FINAL_TRANSCRIPT and await server transcription
+    this.candidateTurnState = "WAITING_FOR_FINAL_TRANSCRIPT";
+    this.clearCandidateTurnSafetyTimer();
 
-      const answer = this.inputTranscriptBuffer.trim();
+    this.candidateSafetyTimer = setTimeout(() => {
+      this.candidateSafetyTimer = null;
 
-      if (answer && !this.candidateTurnFinalized) {
-        this.candidateTurnFinalized = true;
-        console.log("[Live Interview] Candidate turn finalized:", answer);
-        this.candidateTurnEndHandler?.(answer);
-      } else if (!answer && !this.isSpeaking) {
-        // No speech was detected in the transcript buffer and Gemini is not speaking;
-        // resume microphone so candidate can answer.
-        console.log("[Live Interview] No transcript captured for VAD event. Resuming microphone.");
-        this.resumeMicrophone();
+      if (this.candidateTurnState !== "WAITING_FOR_FINAL_TRANSCRIPT") {
+        return;
       }
-    }, this.candidateTranscriptFlushMs);
+
+      const answer = this.finalizedInputTranscript.trim();
+      if (answer) {
+        this.tryFinalizeCandidateTurn();
+        return;
+      }
+
+      // If Gemini is speaking or model response has begun, keep waiting with mic paused
+      if (this.isSpeaking || this.modelResponseReceived) {
+        console.log(
+          `[CandidateAudioTrace] Safety timer fired, but Gemini is active (isSpeaking=${this.isSpeaking}, modelResponseReceived=${this.modelResponseReceived}). Keeping microphone paused.`,
+        );
+        return;
+      }
+
+      // True silence / false VAD trigger after full safety timeout: non-destructive reset to WAITING_FOR_ANSWER and resume microphone
+      console.log(
+        `[CandidateAudioTrace] Safety timer (${this.candidateSafetyTimeoutMs}ms) expired with no transcript and model idle. Non-destructive reset to WAITING_FOR_ANSWER and resuming microphone.`,
+      );
+      this.candidateTurnState = "WAITING_FOR_ANSWER";
+      this.resumeMicrophone();
+      this.candidateTurnResetHandler?.();
+    }, this.candidateSafetyTimeoutMs);
   }
 
   private handleInputVadLevel(level: number): void {
@@ -930,11 +1138,27 @@ class GeminiLiveService {
       this.candidateLastVoiceAt = now;
 
       if (!this.candidateSpeechActive) {
+        if (this.candidateTurnState !== "WAITING_FOR_ANSWER") {
+          console.log(
+            `[CandidateAudioTrace] Candidate speech ignored because system is in state ${this.candidateTurnState} (not WAITING_FOR_ANSWER).`,
+          );
+          return;
+        }
+
         this.candidateSpeechActive = true;
         this.candidateSpeechStartedAt = now;
-        this.candidateTurnFinalized = false;
-        this.inputTranscriptBuffer = "";
+        this.candidateTurnState = "SPEAKING";
+        this.modelResponseReceived = false;
+        this.finalizedInputTranscript = "";
+        this.interimInputTranscript = "";
+        this.clearCandidateTurnSafetyTimer();
+        this.candidateTraceSpeechStartTime = Date.now();
+        this.candidateTraceChunksSentThisTurn = 0;
+        this.candidateTraceBytesSentThisTurn = 0;
 
+        console.log(
+          `[CandidateAudioTrace] CandidateTurnState transitioned to SPEAKING. speechStart timestamp: ${this.candidateTraceSpeechStartTime}, wsReadyState: ${this.websocket?.readyState}`,
+        );
         console.log("[Live Interview] Candidate speech started.");
         this.candidateSpeechStartHandler?.();
       }
@@ -952,12 +1176,9 @@ class GeminiLiveService {
     }
 
     const elapsedSpeech = now - this.candidateSpeechStartedAt;
+    const silenceDuration = now - this.candidateLastVoiceAt;
 
-    if (elapsedSpeech < this.candidateVadMinSpeechMs) {
-      return;
-    }
-
-    if (now - this.candidateLastVoiceAt < this.candidateVadSilenceMs) {
+    if (silenceDuration < this.candidateVadSilenceMs) {
       if (!this.candidateSilenceTimer) {
         this.candidateSilenceTimer = setTimeout(() => {
           this.candidateSilenceTimer = null;
@@ -971,6 +1192,16 @@ class GeminiLiveService {
     if (this.candidateSilenceTimer) {
       clearTimeout(this.candidateSilenceTimer);
       this.candidateSilenceTimer = null;
+    }
+
+    if (elapsedSpeech < this.candidateVadMinSpeechMs) {
+      console.log(
+        `[CandidateAudioTrace] Discarding transient noise (duration: ${Math.round(elapsedSpeech)}ms < ${this.candidateVadMinSpeechMs}ms). Non-destructive reset to WAITING_FOR_ANSWER.`,
+      );
+      this.cancelCandidateVad();
+      this.candidateTurnState = "WAITING_FOR_ANSWER";
+      this.candidateTurnResetHandler?.();
+      return;
     }
 
     this.finishCandidateTurn();
@@ -1043,11 +1274,30 @@ class GeminiLiveService {
 
       this.handleInputVadLevel(rms);
 
+      // Gate: Only stream audio to Gemini when actively in a candidate turn phase
+      if (
+        this.candidateTurnState !== "WAITING_FOR_ANSWER" &&
+        this.candidateTurnState !== "SPEAKING"
+      ) {
+        return;
+      }
+
       const pcmData = this.float32ToInt16(inputData);
 
       const bytes = new Uint8Array(pcmData.buffer);
 
       const base64Audio = this.uint8ArrayToBase64(bytes);
+
+      this.candidateTraceChunksSentThisTurn += 1;
+      this.candidateTraceBytesSentThisTurn += bytes.byteLength;
+      this.candidateTraceTotalChunksSent += 1;
+      this.candidateTraceTotalBytesSent += bytes.byteLength;
+
+      if (this.candidateTraceChunksSentThisTurn % 10 === 1) {
+        console.log(
+          `[CandidateAudioTrace] audio chunks sent this turn: ${this.candidateTraceChunksSentThisTurn}, bytes this turn: ${this.candidateTraceBytesSentThisTurn}, total session chunks: ${this.candidateTraceTotalChunksSent}, total session bytes: ${this.candidateTraceTotalBytesSent}, wsReadyState: ${this.websocket?.readyState}`,
+        );
+      }
 
       const message = {
         realtimeInput: {
@@ -1098,7 +1348,8 @@ class GeminiLiveService {
   stopMicrophone(): void {
     this.microphonePaused = false;
     this.cancelCandidateVad();
-    this.inputTranscriptBuffer = "";
+    this.finalizedInputTranscript = "";
+    this.interimInputTranscript = "";
 
     if (this.inputAudioProcessor) {
       this.inputAudioProcessor.onaudioprocess = null;
@@ -1170,6 +1421,7 @@ class GeminiLiveService {
 
     this.clearSetupTimeout();
     this.clearSpeakingEndTimer();
+    this.clearCandidateTurnSafetyTimer();
 
     this.stopMicrophone();
 
@@ -1187,6 +1439,8 @@ class GeminiLiveService {
 
     this.candidateTurnEndHandler = null;
     this.candidateSpeechStartHandler = null;
+    this.candidateTurnResetHandler = null;
+    this.latestResumptionHandle = null;
 
     this.setupCompleted = false;
 
@@ -1195,13 +1449,15 @@ class GeminiLiveService {
     this.isSpeaking = false;
     this.speakingEndNotified = false;
     this.turnCompleteReceived = false;
+    this.modelResponseReceived = false;
+    this.candidateTurnState = "IDLE";
     this.stopAudioLevelMonitoring();
     this.audioLevelHandler = null;
 
     this.microphonePaused = false;
     this.outputTranscriptBuffer = "";
-    this.inputTranscriptBuffer = "";
-    this.candidateTurnEndHandler = null;
+    this.finalizedInputTranscript = "";
+    this.interimInputTranscript = "";
     this.scheduledAudioEndTime = 0;
 
     for (const source of this.audioSources) {
@@ -1247,6 +1503,7 @@ class GeminiLiveService {
 
     this.clearSetupTimeout();
     this.clearSpeakingEndTimer();
+    this.clearCandidateTurnSafetyTimer();
     this.cancelCandidateVad();
 
     if (this.websocket) {
@@ -1265,9 +1522,12 @@ class GeminiLiveService {
     this.isSpeaking = false;
     this.speakingEndNotified = false;
     this.turnCompleteReceived = false;
+    this.modelResponseReceived = false;
+    this.candidateTurnState = "IDLE";
     this.microphonePaused = false;
     this.outputTranscriptBuffer = "";
-    this.candidateTurnFinalized = false;
+    this.finalizedInputTranscript = "";
+    this.interimInputTranscript = "";
     this.stopAudioLevelMonitoring();
 
     for (const source of this.audioSources) {
@@ -1282,6 +1542,17 @@ class GeminiLiveService {
 
   isSetupComplete(): boolean {
     return this.setupCompleted;
+  }
+
+  getCandidateTurnState(): CandidateTurnState {
+    return this.candidateTurnState;
+  }
+
+  setCandidateTurnState(state: CandidateTurnState): void {
+    console.log(
+      `[CandidateAudioTrace] CandidateTurnState manually set: ${this.candidateTurnState} -> ${state}`,
+    );
+    this.candidateTurnState = state;
   }
 }
 

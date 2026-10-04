@@ -10,8 +10,9 @@ interface NewInterviewData {
   role: string;
   interviewType:
     | "Technical"
-    | "Behavioral"
-    | "Mixed";
+    | "Resume-Based"
+    | "Mixed"
+    | "Behavioral";
   difficulty:
     | "Easy"
     | "Medium"

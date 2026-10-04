@@ -50,6 +50,7 @@ const InterviewPage: React.FC = () => {
   const geminiSpeakingRef = useRef(false);
 
   const [started, setStarted] = useState(false);
+  const startedRef = useRef(false);
   const [loading, setLoading] = useState(false);
 
   const [micEnabled, setMicEnabled] = useState(true);
@@ -60,6 +61,7 @@ const InterviewPage: React.FC = () => {
   const [mediaError, setMediaError] = useState("");
 
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const elapsedSecondsRef = useRef(0);
 
   const [aiStatus, setAiStatus] = useState<
     "Listening" | "Thinking" | "Speaking"
@@ -76,7 +78,7 @@ const InterviewPage: React.FC = () => {
   );
 
   const [candidateTranscript, setCandidateTranscript] = useState(
-    "Your speech will appear here as text while you speak.",
+    "Your speech will appear here as you speak.",
   );
 
   const [isSavingTurn, setIsSavingTurn] = useState(false);
@@ -109,11 +111,11 @@ const InterviewPage: React.FC = () => {
   const [showEndEarlyModal, setShowEndEarlyModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
-  // 60-second candidate no-answer countdown
+  // 15-second candidate no-answer reminder countdown and modal state
   const [candidateCountdown, setCandidateCountdown] = useState<number | null>(null);
   const candidateNoAnswerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const candidateCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isProcessingSkipRef = useRef(false);
+  const [showNoAnswerReminderModal, setShowNoAnswerReminderModal] = useState(false);
 
   const isLeavingRef = useRef(false);
   const isReconnectingRef = useRef(false);
@@ -183,6 +185,7 @@ const InterviewPage: React.FC = () => {
   // Overall component teardown
   useEffect(() => {
     return () => {
+      startedRef.current = false;
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -266,8 +269,24 @@ const InterviewPage: React.FC = () => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
+
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        const settings = audioTrack.getSettings();
+        console.log("[Live Interview] Microphone constraints enabled:", {
+          echoCancellation: settings.echoCancellation ?? true,
+          noiseSuppression: settings.noiseSuppression ?? true,
+          autoGainControl: settings.autoGainControl ?? true,
+          sampleRate: settings.sampleRate,
+          channelCount: settings.channelCount,
+        });
+      }
 
       streamRef.current = stream;
 
@@ -292,7 +311,7 @@ const InterviewPage: React.FC = () => {
     const key = `interview_session_${id}`;
     let sid = authoritativeSessionIdRef.current || sessionStorage.getItem(key);
     if (!sid) {
-      if (started) {
+      if (startedRef.current) {
         console.warn(`[Live Interview] Session ID missing from storage for active interview ${id}`);
       }
       sid = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -327,6 +346,10 @@ const InterviewPage: React.FC = () => {
       return Promise.resolve();
     }
 
+    console.log(
+      `[CandidateAudioTrace] saveConversationTurn invoked: speaker=${speaker}, textLength=${cleanedText.length}, isQuestion=${isQuestion}`,
+    );
+
     const task = async () => {
       setIsSavingTurn(true);
       isSavingTurnRef.current = true;
@@ -344,6 +367,10 @@ const InterviewPage: React.FC = () => {
               timestamp: new Date().toISOString(),
             }),
           },
+        );
+
+        console.log(
+          `[CandidateAudioTrace] /live/turn response: status=${response.status}, ok=${response.ok}, speaker=${speaker}`,
         );
 
         if (response.status === 409) {
@@ -380,9 +407,12 @@ const InterviewPage: React.FC = () => {
     return turnSaveQueueRef.current;
   };
 
-  const CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS = 60;
+  const CANDIDATE_NO_ANSWER_REMINDER_SECONDS = 15;
 
   const clearCandidateNoAnswerTimeout = () => {
+    const hadActiveTimer = Boolean(
+      candidateNoAnswerTimeoutRef.current || candidateCountdownIntervalRef.current
+    );
     if (candidateNoAnswerTimeoutRef.current) {
       clearTimeout(candidateNoAnswerTimeoutRef.current);
       candidateNoAnswerTimeoutRef.current = null;
@@ -392,9 +422,11 @@ const InterviewPage: React.FC = () => {
       candidateCountdownIntervalRef.current = null;
     }
     setCandidateCountdown(null);
-    console.log(
-      `[Live Interview] Candidate timer cleared for Question ${interviewerQuestionCountRef.current}. Candidate speaking: ${isCandidateSpeakingTurnRef.current}`
-    );
+    if (hadActiveTimer) {
+      console.log(
+        `[Live Interview] Candidate timer cleared for Question ${interviewerQuestionCountRef.current}. Candidate speaking: ${isCandidateSpeakingTurnRef.current}`
+      );
+    }
   };
 
   const startCandidateNoAnswerTimeout = () => {
@@ -403,19 +435,17 @@ const InterviewPage: React.FC = () => {
       interviewCompletedRef.current ||
       waitingForClosingStatementRef.current ||
       geminiSpeakingRef.current ||
-      !started ||
-      candidateTurnFinalizedForCurrentQuestionRef.current ||
-      isProcessingSkipRef.current
+      !startedRef.current ||
+      candidateTurnFinalizedForCurrentQuestionRef.current
     ) {
       return;
     }
 
     console.log(
-      `[Live Interview] Candidate timer started (${CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS}s) for Question ${interviewerQuestionCountRef.current}. Finalized: ${candidateTurnFinalizedForCurrentQuestionRef.current}`
+      `[Live Interview] Candidate 15s reminder timer started for Question ${interviewerQuestionCountRef.current}. Finalized: ${candidateTurnFinalizedForCurrentQuestionRef.current}`
     );
-    isProcessingSkipRef.current = false;
-    setCandidateCountdown(CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS);
-    let remaining = CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS;
+    setCandidateCountdown(CANDIDATE_NO_ANSWER_REMINDER_SECONDS);
+    let remaining = CANDIDATE_NO_ANSWER_REMINDER_SECONDS;
 
     candidateCountdownIntervalRef.current = setInterval(() => {
       remaining -= 1;
@@ -436,53 +466,39 @@ const InterviewPage: React.FC = () => {
         interviewCompletedRef.current ||
         waitingForClosingStatementRef.current ||
         geminiSpeakingRef.current ||
-        isProcessingSkipRef.current ||
         candidateTurnFinalizedForCurrentQuestionRef.current ||
         isCandidateSpeakingTurnRef.current
       ) {
         console.log(
-          `[Live Interview] Candidate timeout ignored for Question ${interviewerQuestionCountRef.current}: finalized=${candidateTurnFinalizedForCurrentQuestionRef.current}, speaking=${isCandidateSpeakingTurnRef.current}`
+          `[Live Interview] Candidate 15s timeout ignored for Question ${interviewerQuestionCountRef.current}: finalized=${candidateTurnFinalizedForCurrentQuestionRef.current}, speaking=${isCandidateSpeakingTurnRef.current}`
         );
         return;
       }
 
-      // Mark the current candidate turn/question as finalized / auto-skipped
-      isProcessingSkipRef.current = true;
-      candidateTurnFinalizedForCurrentQuestionRef.current = true;
-
       console.warn(
-        `[Live Interview] Candidate no-answer ${CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS}s timeout fired for Question ${interviewerQuestionCountRef.current}. Finalizing turn as skipped.`
+        `[Live Interview] 15 seconds with no detected candidate speech for Question ${interviewerQuestionCountRef.current}. Showing reminder modal.`
       );
 
-      setCandidateTranscript(
-        `Question skipped (no response received within ${CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS} seconds).`,
-      );
+      // SHOW 15-SECOND REMINDER POPUP (NON-DESTRUCTIVE - NO SKIP, NO PROGRESSION, SAME QUESTION REMAINS)
+      setShowNoAnswerReminderModal(true);
+    }, CANDIDATE_NO_ANSWER_REMINDER_SECONDS * 1000);
+  };
 
-      void saveConversationTurn("candidate", "[Skipped / No Answer]", false).catch(
-        (err) => {
-          console.warn("Error saving skipped turn:", err);
-        },
-      );
-
-      const target = totalQuestionsRef.current || 20;
-      const currentQ = interviewerQuestionCountRef.current;
-
-      if (currentQ >= target) {
-        console.log(
-          "[Live Interview] Target questions reached after skip. Requesting closing statement.",
-        );
-        waitingForClosingStatementRef.current = true;
-        liveServiceRef.current?.sendText(
-          `The question was skipped due to timeout. The required limit of ${target} questions has been reached. Do NOT ask any more questions. Give a short closing statement concluding the interview: "Thank you for attending the interview. That concludes the interview." and stop speaking.`,
-        );
-      } else {
-        liveServiceRef.current?.sendText(
-          `The candidate did not provide an answer within ${CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS} seconds. The question was skipped. Please ask the next question now.`,
-        );
+  const handleAnswerNow = () => {
+    console.log(
+      `[Live Interview] 'Answer Now' clicked for Question ${interviewerQuestionCountRef.current}. Resetting 15s waiting timer for same question.`
+    );
+    setShowNoAnswerReminderModal(false);
+    if (
+      !interviewCompletedRef.current &&
+      !candidateTurnFinalizedForCurrentQuestionRef.current &&
+      !geminiSpeakingRef.current
+    ) {
+      if (micEnabled && liveServiceRef.current?.isConnected()) {
+        liveServiceRef.current?.resumeMicrophone();
       }
-
-      startGeminiIdleWatchdog();
-    }, CANDIDATE_NO_ANSWER_TIMEOUT_SECONDS * 1000);
+      startCandidateNoAnswerTimeout();
+    }
   };
 
   const clearGeminiIdleWatchdog = () => {
@@ -512,7 +528,7 @@ const InterviewPage: React.FC = () => {
         !interviewCompletedRef.current &&
         !geminiSpeakingRef.current &&
         !geminiMeaningfulProgressRef.current &&
-        started
+        startedRef.current
       ) {
         console.warn(
           "[Live Interview] 20-second Gemini watchdog fired without response.",
@@ -532,9 +548,11 @@ const InterviewPage: React.FC = () => {
     }
 
     interviewCompletedRef.current = true;
+    startedRef.current = false;
     pendingCompletionRef.current = false;
     clearCandidateNoAnswerTimeout();
     clearGeminiIdleWatchdog();
+    setShowNoAnswerReminderModal(false);
 
     setIsCompletingInterview(true);
 
@@ -561,7 +579,9 @@ const InterviewPage: React.FC = () => {
           {
             method: "POST",
             headers: getAuthHeaders(),
-            body: JSON.stringify({}),
+            body: JSON.stringify({
+              elapsedSeconds: elapsedSecondsRef.current,
+            }),
           },
         );
 
@@ -592,12 +612,14 @@ const InterviewPage: React.FC = () => {
   const handleConfirmLeave = () => {
     setShowLeaveModal(false);
     isLeavingRef.current = true;
+    startedRef.current = false;
     isReconnectingRef.current = false;
     isReStatingPendingQuestionRef.current = false;
     connectionGenerationRef.current += 1;
 
     clearCandidateNoAnswerTimeout();
     clearGeminiIdleWatchdog();
+    setShowNoAnswerReminderModal(false);
 
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -620,6 +642,9 @@ const InterviewPage: React.FC = () => {
           {
             method: "POST",
             headers: getAuthHeaders(),
+            body: JSON.stringify({
+              elapsedSeconds: elapsedSecondsRef.current,
+            }),
           },
         );
       } catch (err) {
@@ -789,11 +814,16 @@ const InterviewPage: React.FC = () => {
               .join("\n")
           : "";
 
+        const sessionRole =
+          resumeSessionData?.interview?.role || "";
+        const sessionType =
+          resumeSessionData?.interview?.interviewType || "";
+        const sessionDifficulty =
+          resumeSessionData?.interview?.difficulty || "";
+
         const resumePrompt = `Resume the ongoing interview now.
 
-Role: Interview Candidate
-Difficulty: Authoritative
-Target total questions: EXACTLY ${target} questions.
+${sessionRole ? `Role: ${sessionRole}\n` : ""}${sessionType ? `Interview Type: ${sessionType}\n` : ""}${sessionDifficulty ? `Difficulty: ${sessionDifficulty}\n` : ""}Target total questions: EXACTLY ${target} questions.
 
 ${previousTurns ? `CONVERSATION HISTORY SO FAR:\n${previousTurns}\n` : ""}
 CURRENT STATUS:
@@ -803,14 +833,14 @@ CURRENT STATUS:
 ${lastQ ? `- Most recent question asked: "${lastQ}"` : ""}
 
 CRITICAL INSTRUCTIONS:
-1. Review the conversation history above. You are continuing this exact interview.
+1. Review the conversation history above. You are continuing this exact ${sessionType ? `${sessionType} ` : ""}interview for the role of ${sessionRole || "the candidate"}.
 2. Do NOT restart from Question 1. Do NOT greet or introduce yourself again.
 3. Every question counts toward the total of ${target}.
 4. Remaining questions to ask: ${Math.max(0, target - currentQ)}.
 ${
   currentQ > answeredQ
     ? `5. The candidate has not answered Question ${currentQ} yet. Re-state Question ${currentQ} briefly and clearly, then wait for their answer.`
-    : `5. Ask Question ${currentQ + 1} now based on the previous conversation.`
+    : `5. Ask Question ${currentQ + 1} now based on the previous conversation and the ${sessionType || "interview"} requirements.`
 }
 6. Ask exactly ONE question at a time and wait for the candidate's answer before proceeding.
 7. When all ${target} questions have been answered, conclude with: "Thank you. The interview is now complete." and stop speaking.`;
@@ -822,12 +852,19 @@ ${
       } else if (!geminiSystemInstructionSentRef.current) {
         geminiSystemInstructionSentRef.current = true;
 
+        const sessionRole =
+          resumeSessionData?.interview?.role || "";
+        const sessionType =
+          resumeSessionData?.interview?.interviewType || "";
+        const sessionDifficulty =
+          resumeSessionData?.interview?.difficulty || "";
+
         liveServiceRef.current?.sendText(
           `Begin the interview now.
 
 You are the sole AI interviewer and you control the entire interview.
 
-You control:
+${sessionRole ? `Target Role: ${sessionRole}\n` : ""}${sessionType ? `Interview Type: ${sessionType}\n` : ""}${sessionDifficulty ? `Difficulty: ${sessionDifficulty}\n` : ""}You control:
 - all interview questions
 - follow-up questions
 - question progression
@@ -878,11 +915,26 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         return;
       }
 
+      if (
+        candidateTurnFinalizedForCurrentQuestionRef.current ||
+        geminiSpeakingRef.current ||
+        !startedRef.current
+      ) {
+        console.log(
+          `[Live Interview] Candidate speech start ignored (finalized=${candidateTurnFinalizedForCurrentQuestionRef.current}, geminiSpeaking=${geminiSpeakingRef.current}, started=${startedRef.current})`
+        );
+        return;
+      }
+
       // Candidate started speaking the current turn:
       // immediately clear previous answer and cancel candidate timeout
       isCandidateSpeakingTurnRef.current = true;
+      console.log(
+        `[CandidateAudioTrace] onCandidateSpeechStart handler triggered at timestamp: ${Date.now()}`,
+      );
       console.log("[Live Interview] Candidate speech started.");
       clearCandidateNoAnswerTimeout();
+      setShowNoAnswerReminderModal(false);
       clearGeminiIdleWatchdog();
       setCandidateTranscript("");
       setAiStatus("Listening");
@@ -896,14 +948,40 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         return;
       }
 
-      if (!geminiSpeakingRef.current && !interviewCompletedRef.current) {
+      if (
+        !geminiSpeakingRef.current &&
+        !interviewCompletedRef.current &&
+        !candidateTurnFinalizedForCurrentQuestionRef.current
+      ) {
         setAiStatus("Listening");
         isCandidateSpeakingTurnRef.current = true;
         clearCandidateNoAnswerTimeout();
+        setShowNoAnswerReminderModal(false);
+        console.log(
+          `[CandidateAudioTrace] onInputTranscript handler received text length: ${text.length}`,
+        );
         console.log(
           `[Live Interview] Candidate transcript received for Question ${interviewerQuestionCountRef.current}: "${text.substring(0, 50)}..."`
         );
         setCandidateTranscript(text);
+      }
+    },
+
+    onCandidateTurnReset: () => {
+      if (
+        generation !== undefined &&
+        generation !== connectionGenerationRef.current
+      ) {
+        return;
+      }
+      isCandidateSpeakingTurnRef.current = false;
+      if (
+        !geminiSpeakingRef.current &&
+        !interviewCompletedRef.current &&
+        !candidateTurnFinalizedForCurrentQuestionRef.current
+      ) {
+        setAiStatus("Listening");
+        startCandidateNoAnswerTimeout();
       }
     },
 
@@ -916,16 +994,17 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       }
 
       clearCandidateNoAnswerTimeout();
+      setShowNoAnswerReminderModal(false);
 
       const cleanedText = text.trim();
       if (!cleanedText || interviewCompletedRef.current) {
         return;
       }
 
-      // Check if this question's candidate turn was already finalized (or auto-skipped)
+      // Check if this question's candidate turn was already finalized
       if (candidateTurnFinalizedForCurrentQuestionRef.current) {
         console.warn(
-          `[Live Interview] Discarding late candidate transcript for Question ${interviewerQuestionCountRef.current} because question was already finalized/skipped: "${cleanedText}"`
+          `[Live Interview] Discarding late/duplicate candidate transcript for Question ${interviewerQuestionCountRef.current} because question was already finalized: "${cleanedText}"`
         );
         isCandidateSpeakingTurnRef.current = false;
         return;
@@ -940,6 +1019,12 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       lastSavedCandidateTextRef.current = cleanedText;
       candidateAnswerCountRef.current += 1;
       isCandidateSpeakingTurnRef.current = false;
+
+      liveServiceRef.current?.setCandidateTurnState("SAVING_ANSWER");
+
+      console.log(
+        `[CandidateAudioTrace] onCandidateTurnEnd invoked in InterviewPage: candidate text length=${cleanedText.length}, questionNumber=${interviewerQuestionCountRef.current}`,
+      );
       console.log(
         `[Live Interview] Candidate turn submitted for Question ${interviewerQuestionCountRef.current}: "${cleanedText}"`
       );
@@ -997,6 +1082,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       geminiSpeakingRef.current = true;
       geminiMeaningfulProgressRef.current = true;
       clearCandidateNoAnswerTimeout();
+      setShowNoAnswerReminderModal(false);
       clearGeminiIdleWatchdog();
       setInterviewerTranscript("");
       liveServiceRef.current?.pauseMicrophone();
@@ -1027,7 +1113,6 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       if (isReStatingPendingQuestionRef.current) {
         isReStatingPendingQuestionRef.current = false;
         candidateTurnFinalizedForCurrentQuestionRef.current = false;
-        isProcessingSkipRef.current = false;
         console.log(
           `[Live Interview] Re-stated unanswered Question ${interviewerQuestionCountRef.current}. Question count preserved.`,
         );
@@ -1060,7 +1145,6 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
       if (isQuestion) {
         candidateTurnFinalizedForCurrentQuestionRef.current = false;
-        isProcessingSkipRef.current = false;
 
         interviewerQuestionCountRef.current += 1;
         const questionNumber = interviewerQuestionCountRef.current;
@@ -1172,7 +1256,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       console.error("Gemini Live error:", liveError);
       clearCandidateNoAnswerTimeout();
       clearGeminiIdleWatchdog();
-      if (started && !interviewCompletedRef.current) {
+      if (startedRef.current && !interviewCompletedRef.current) {
         void handleReconnect();
       } else {
         setAiStatus("Thinking");
@@ -1199,7 +1283,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       console.log("Gemini Live WebSocket closed.");
       clearCandidateNoAnswerTimeout();
       clearGeminiIdleWatchdog();
-      if (started && !interviewCompletedRef.current && !isLeavingRef.current) {
+      if (startedRef.current && !interviewCompletedRef.current && !isLeavingRef.current) {
         void handleReconnect();
       }
     },
@@ -1276,14 +1360,12 @@ Begin the interview now with a brief professional introduction and Question 1.`,
             setCandidateTranscript(data.lastCandidateTurn);
           }
 
-          if (data.interview?.startedAt) {
-            const startedMs = new Date(data.interview.startedAt).getTime();
-            const elapsed = Math.max(
-              0,
-              Math.floor((Date.now() - startedMs) / 1000),
-            );
-            setElapsedSeconds(elapsed);
-          }
+          const activeSeconds =
+            data.interview?.activeDurationSeconds ??
+            data.stats?.activeDurationSeconds ??
+            0;
+          setElapsedSeconds(activeSeconds);
+          elapsedSecondsRef.current = activeSeconds;
 
           void handleStartInterview(true, data);
         }
@@ -1344,6 +1426,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         turnSaveQueueRef.current = Promise.resolve();
         setCurrentQuestion(0);
         setElapsedSeconds(0);
+        elapsedSecondsRef.current = 0;
         setInterviewerTranscript(
           "Your AI interviewer is preparing the first question.",
         );
@@ -1390,12 +1473,12 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       }
 
       candidateTurnFinalizedForCurrentQuestionRef.current = false;
-      isProcessingSkipRef.current = false;
 
       configuredLimit = liveStartData.interview?.questionLimit ?? configuredLimit;
       totalQuestionsRef.current = configuredLimit;
       setTotalQuestions(configuredLimit);
 
+      startedRef.current = true;
       setStarted(true);
       setAiStatus("Thinking");
 
@@ -1411,7 +1494,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       const handlers = createLiveHandlers(
         isResume,
         configuredLimit,
-        resumeSessionData,
+        resumeSessionData || liveStartData,
         currentGen,
       );
       await liveService.connect(id, handlers);
@@ -1421,7 +1504,11 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       }
 
       timerRef.current = setInterval(() => {
-        setElapsedSeconds((previous) => previous + 1);
+        setElapsedSeconds((previous) => {
+          const next = previous + 1;
+          elapsedSecondsRef.current = next;
+          return next;
+        });
       }, 1000);
     } catch (error) {
       console.error("Start interview error:", error);
@@ -1440,6 +1527,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         timerRef.current = null;
       }
 
+      startedRef.current = false;
       setStarted(false);
       setMediaReady(false);
 
@@ -1503,7 +1591,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
   };
 
   const handleEndInterview = () => {
-    if (!started) {
+    if (!startedRef.current && !started) {
       navigate("/dashboard");
       return;
     }
@@ -2192,14 +2280,14 @@ Begin the interview now with a brief professional introduction and Question 1.`,
                         py: "1px",
                         borderRadius: "4px",
                         backgroundColor:
-                          candidateCountdown <= 10
+                          candidateCountdown <= 5
                             ? "rgba(239, 68, 68, 0.2)"
                             : "rgba(230, 155, 53, 0.2)",
                         border: "1px solid",
                         borderColor:
-                          candidateCountdown <= 10 ? "#ef4444" : "#e69b35",
+                          candidateCountdown <= 5 ? "#ef4444" : "#e69b35",
                         color:
-                          candidateCountdown <= 10 ? "#ff8080" : "#f5b041",
+                          candidateCountdown <= 5 ? "#ff8080" : "#f5b041",
                       }}
                     >
                       <AccessTimeIcon sx={{ fontSize: "11px" }} />
@@ -2624,14 +2712,14 @@ Begin the interview now with a brief professional introduction and Question 1.`,
                       py: "2px",
                       borderRadius: "5px",
                       backgroundColor:
-                        candidateCountdown <= 10
+                        candidateCountdown <= 5
                           ? "rgba(239, 68, 68, 0.2)"
                           : "rgba(230, 155, 53, 0.2)",
                       border: "1px solid",
                       borderColor:
-                        candidateCountdown <= 10 ? "#ef4444" : "#e69b35",
+                        candidateCountdown <= 5 ? "#ef4444" : "#e69b35",
                       color:
-                        candidateCountdown <= 10 ? "#ff8080" : "#f5b041",
+                        candidateCountdown <= 5 ? "#ff8080" : "#f5b041",
                     }}
                   >
                     <AccessTimeIcon sx={{ fontSize: "12px" }} />
@@ -3274,6 +3362,75 @@ Begin the interview now with a brief professional introduction and Question 1.`,
             }}
           >
             Return to Dashboard
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 15-Second No-Answer Reminder Modal */}
+      <Dialog
+        open={showNoAnswerReminderModal}
+        onClose={() => {}}
+        slotProps={{
+          paper: {
+            sx: {
+              backgroundColor: "#1c1f26",
+              color: "#ffffff",
+              borderRadius: "16px",
+              border: "1px solid #2d3340",
+              maxWidth: "460px",
+              p: 1,
+              boxShadow: "0 24px 64px rgba(0,0,0,0.8)",
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ pb: 1, pt: 2, px: 3, display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+              borderRadius: "10px",
+              backgroundColor: "rgba(230, 155, 53, 0.15)",
+              color: "#e69b35",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <WarningAmberRoundedIcon sx={{ fontSize: 22 }} />
+          </Box>
+          <Typography sx={{ fontSize: "17px", fontWeight: 800, color: "#ffffff" }}>
+            Please answer the question
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent sx={{ px: 3, py: 1.5 }}>
+          <Typography sx={{ fontSize: "14px", color: "#d1d5db", lineHeight: 1.6, fontWeight: 500 }}>
+            We haven't detected an answer yet. Please answer the current question to continue.
+          </Typography>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 1.5, justifyContent: "flex-end" }}>
+          <Button
+            id="answer-now-btn"
+            onClick={handleAnswerNow}
+            variant="contained"
+            sx={{
+              backgroundColor: "#2563eb",
+              textTransform: "none",
+              fontWeight: 800,
+              fontSize: "13px",
+              px: 3,
+              py: 1,
+              borderRadius: "8px",
+              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.35)",
+              "&:hover": {
+                backgroundColor: "#1d4ed8",
+              },
+            }}
+          >
+            Answer Now
           </Button>
         </DialogActions>
       </Dialog>

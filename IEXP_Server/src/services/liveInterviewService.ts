@@ -107,6 +107,7 @@ export interface StartLiveInterviewResult {
     questionLimit: number;
     status: string;
     startedAt?: Date;
+    activeDurationSeconds?: number;
   };
   sessionId: string;
 }
@@ -161,12 +162,14 @@ export interface LiveInterviewSessionResult {
     status: string;
     startedAt?: Date;
     endedAt?: Date;
+    activeDurationSeconds?: number;
   };
   stats: {
     totalQuestions: number;
     currentQuestion: number;
     answeredCount: number;
     minimumRequiredAnswers: number;
+    activeDurationSeconds?: number;
   };
   turns: Array<{
     sequence: number;
@@ -276,6 +279,7 @@ export const startLiveInterview = async ({
       questionLimit,
       status: interview.status,
       startedAt: interview.startedAt,
+      activeDurationSeconds: interview.activeDurationSeconds || 0,
     },
     sessionId: effectiveSessionId,
   };
@@ -556,12 +560,14 @@ export const getLiveInterviewSession = async ({
       status: interview.status,
       startedAt: interview.startedAt,
       endedAt: interview.endedAt,
+      activeDurationSeconds: interview.activeDurationSeconds || 0,
     },
     stats: {
       totalQuestions: questionLimit,
       currentQuestion: questionTurns.length,
       answeredCount: candidateAnsweredTurns.length,
       minimumRequiredAnswers: Math.ceil(questionLimit * 0.5),
+      activeDurationSeconds: interview.activeDurationSeconds || 0,
     },
     turns: turns.map((t) => ({
       sequence: t.sequence,
@@ -709,10 +715,12 @@ export const completeLiveInterview = async ({
   interviewId,
   userId,
   sessionId,
+  elapsedSeconds,
 }: {
   interviewId: string;
   userId: string;
   sessionId?: string;
+  elapsedSeconds?: number;
 }): Promise<CompleteLiveInterviewResult> => {
   const interview = await getInterview({
     interviewId,
@@ -750,12 +758,19 @@ export const completeLiveInterview = async ({
     }
   }
 
+  if (typeof elapsedSeconds === "number" && Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
+    const wholeSeconds = Math.floor(elapsedSeconds);
+    interview.activeDurationSeconds = Math.max(interview.activeDurationSeconds || 0, wholeSeconds);
+  }
+
   // Mark interview completed in database if not already completed and clear active session
   if (interview.status !== "Completed") {
     interview.status = "Completed";
     interview.endedAt = new Date();
     interview.activeSessionId = null;
     interview.activeSessionLastHeartbeat = null;
+    await interview.save();
+  } else if (typeof elapsedSeconds === "number" && Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
     await interview.save();
   }
 
@@ -1029,10 +1044,12 @@ export const leaveLiveInterview = async ({
   interviewId,
   userId,
   sessionId,
+  elapsedSeconds,
 }: {
   interviewId: string;
   userId: string;
   sessionId?: string;
+  elapsedSeconds?: number;
 }): Promise<{
   success: boolean;
   message: string;
@@ -1043,6 +1060,7 @@ export const leaveLiveInterview = async ({
     difficulty: string;
     status: string;
     startedAt?: Date;
+    activeDurationSeconds?: number;
     updatedAt: Date;
   };
 }> => {
@@ -1065,6 +1083,11 @@ export const leaveLiveInterview = async ({
     }
   }
 
+  if (typeof elapsedSeconds === "number" && Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
+    const wholeSeconds = Math.floor(elapsedSeconds);
+    interview.activeDurationSeconds = Math.max(interview.activeDurationSeconds || 0, wholeSeconds);
+  }
+
   if (interview.status !== "Completed") {
     interview.status = "Left";
     interview.activeSessionId = null;
@@ -1072,8 +1095,10 @@ export const leaveLiveInterview = async ({
     await interview.save();
 
     console.log(
-      `[Live Interview] Interview ${interviewId} marked as Left and session released`
+      `[Live Interview] Interview ${interviewId} marked as Left and session released (activeDurationSeconds: ${interview.activeDurationSeconds})`
     );
+  } else if (typeof elapsedSeconds === "number" && Number.isFinite(elapsedSeconds) && elapsedSeconds >= 0) {
+    await interview.save();
   }
 
   return {
@@ -1086,6 +1111,7 @@ export const leaveLiveInterview = async ({
       difficulty: interview.difficulty,
       status: interview.status,
       startedAt: interview.startedAt,
+      activeDurationSeconds: interview.activeDurationSeconds || 0,
       updatedAt: interview.updatedAt,
     },
   };

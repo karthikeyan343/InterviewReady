@@ -4,7 +4,7 @@ export interface IInterview extends Document {
   userId: Types.ObjectId;
   resumeId: Types.ObjectId;
   role: string;
-  interviewType: "Technical" | "Behavioral" | "Mixed";
+  interviewType: "Technical" | "Resume-Based" | "Mixed" | "Behavioral";
   difficulty: "Easy" | "Medium" | "Hard";
   status: "Not Started" | "In Progress" | "Completed" | "Abandoned" | "Left";
   activeSessionId?: string | null;
@@ -12,6 +12,7 @@ export interface IInterview extends Document {
   activeSessionDeviceId?: string | null;
   startedAt?: Date;
   endedAt?: Date;
+  activeDurationSeconds?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,7 +39,7 @@ const interviewSchema = new Schema<IInterview>(
 
     interviewType: {
       type: String,
-      enum: ["Technical", "Behavioral", "Mixed"],
+      enum: ["Technical", "Resume-Based", "Mixed", "Behavioral"],
       required: true,
     },
 
@@ -81,6 +82,11 @@ const interviewSchema = new Schema<IInterview>(
 
     endedAt: {
       type: Date,
+    },
+
+    activeDurationSeconds: {
+      type: Number,
+      default: 0,
     },
   },
   {

@@ -15,7 +15,7 @@ interface NewInterviewModalProps {
   onClose: () => void;
   onCreate?: (data: {
     role: string;
-    interviewType: "Technical" | "Behavioral" | "Mixed";
+    interviewType: "Technical" | "Resume-Based" | "Mixed";
     difficulty: "Easy" | "Medium" | "Hard";
   }) => void | Promise<void>;
 }
@@ -29,12 +29,12 @@ const NewInterviewModal: React.FC<NewInterviewModalProps> = ({
   const [role, setRole] = useState("");
 
   const [interviewType, setInterviewType] = useState<
-    "Technical" | "Behavioral" | "Mixed"
-  >("Technical");
+    "Technical" | "Resume-Based" | "Mixed"
+  >("Mixed");
 
   const [difficulty, setDifficulty] = useState<
     "Easy" | "Medium" | "Hard"
-  >("Medium");
+  >("Easy");
 
   const [error, setError] = useState("");
 
@@ -70,6 +70,9 @@ const NewInterviewModal: React.FC<NewInterviewModalProps> = ({
 
   const handleClose = () => {
     setError("");
+    setRole("");
+    setInterviewType("Mixed");
+    setDifficulty("Easy");
     onClose();
   };
 
@@ -418,7 +421,7 @@ const NewInterviewModal: React.FC<NewInterviewModalProps> = ({
             }}
           >
             {(
-              ["Technical", "Behavioral", "Mixed"] as const
+              ["Technical", "Resume-Based", "Mixed"] as const
             ).map((type) => (
               <Button
                 key={type}

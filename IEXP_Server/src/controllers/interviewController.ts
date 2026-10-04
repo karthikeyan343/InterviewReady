@@ -37,14 +37,15 @@ export const createInterview = async (
 
     const allowedInterviewTypes = [
       "Technical",
-      "Behavioral",
+      "Resume-Based",
       "Mixed",
+      "Behavioral",
     ];
 
     if (!allowedInterviewTypes.includes(interviewType)) {
       res.status(400).json({
         message:
-          "Interview type must be Technical, Behavioral or Mixed",
+          "Interview type must be Technical, Resume-Based or Mixed",
       });
       return;
     }
@@ -392,6 +393,14 @@ export const getAllInterviews = async (
         | null = null;
 
       if (
+        typeof interview.activeDurationSeconds === "number" &&
+        interview.activeDurationSeconds > 0
+      ) {
+        durationMinutes = Math.max(
+          1,
+          Math.round(interview.activeDurationSeconds / 60)
+        );
+      } else if (
         interview.startedAt &&
         interview.endedAt
       ) {

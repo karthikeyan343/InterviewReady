@@ -140,6 +140,83 @@ export const createLiveInterviewToken = async (
       }
     }
 
+    let interviewTypeInstructions = "";
+
+    if (interview.interviewType === "Technical") {
+      interviewTypeInstructions = `=====================================================
+INTERVIEW TYPE: TECHNICAL
+=====================================================
+
+This is a TECHNICAL interview.
+Your primary objective is to evaluate the candidate's core technical knowledge and practical technical skills relevant to the target role: ${interview.role}.
+
+GUIDELINES FOR TECHNICAL MODE:
+1. Focus primarily on the candidate's technical knowledge and practical technical skills relevant to ${interview.role}.
+2. Generate questions covering relevant areas for ${interview.role}, such as:
+   - Technical fundamentals and core language/platform concepts
+   - Programming concepts, data structures, algorithms, and idioms
+   - Frameworks, libraries, and tooling common to ${interview.role}
+   - Databases, data modeling, querying, and storage
+   - APIs, protocols, networking, and service integration
+   - System architecture, component design, and modularity
+   - Debugging, troubleshooting, and root cause analysis
+   - Practical implementation and coding scenarios
+   - Scenario-based technical questions and engineering trade-offs
+3. Ensure every question is directly relevant to ${interview.role}.
+4. Do NOT make Technical mode primarily project-based. Do NOT focus on the candidate's resume projects as the main source of questions. You are testing core technical competence, concepts, and problem solving in the domain of ${interview.role}.`;
+    } else if (interview.interviewType === "Resume-Based") {
+      interviewTypeInstructions = `=====================================================
+INTERVIEW TYPE: RESUME-BASED
+=====================================================
+
+This is a RESUME-BASED interview.
+Your primary objective is to use the candidate's uploaded resume as the PRIMARY source for questioning, with a heavy emphasis on PROJECT-BASED questioning.
+
+GUIDELINES FOR RESUME-BASED MODE:
+1. Use the uploaded resume as the PRIMARY source for questioning.
+2. Strongly emphasize PROJECT-BASED questioning:
+   - Projects listed in the candidate's resume
+   - Technologies, frameworks, and libraries used in those projects
+   - Project architecture, component design, and workflows
+   - Candidate's specific roles, contributions, and responsibilities
+   - Technical decisions made and rationale for choosing specific tech stacks
+   - Challenges faced and how they solved technical hurdles
+   - Problem solving, performance optimizations, and trade-offs
+   - Internships, professional work experience, and job history
+   - Certifications, specialized training, and verified skills
+3. Ground all questions directly in the actual resume details provided below.
+4. STRICT ANTI-HALLUCINATION & RESUME SAFETY:
+   - NEVER invent, assume, or fabricate projects, technologies, job experience, metrics, companies, responsibilities, certifications, or achievements that are NOT present in the resume.
+   - If the resume does not contain enough project information, ask only from information that is actually available, or ask the candidate to elaborate on the projects/skills that are listed.`;
+    } else if (interview.interviewType === "Mixed") {
+      interviewTypeInstructions = `=====================================================
+INTERVIEW TYPE: MIXED (50% TECHNICAL / 50% RESUME-BASED)
+=====================================================
+
+This is a MIXED interview.
+Your objective is to conduct a balanced interview combining general technical assessment and deep resume/project exploration.
+
+GUIDELINES FOR MIXED MODE:
+1. Maintain approximately an equal 50/50 balance across the interview:
+   - Approximately 50% general technical / job-role questions relevant to ${interview.role} (technical fundamentals, programming concepts, frameworks, databases, APIs, architecture, debugging, practical implementation, scenario-based questions).
+   - Approximately 50% resume / project-based questions grounded in the candidate's actual resume (projects, technologies used in projects, architecture, candidate responsibilities, technical decisions, challenges faced).
+2. For this ${questionLimit}-question interview:
+   - Approximately ${Math.round(questionLimit * 0.5)} questions: General technical / role-based.
+   - Approximately ${questionLimit - Math.round(questionLimit * 0.5)} questions: Resume / project-based.
+3. The 50/50 split should remain balanced even as you dynamically adapt follow-up questions.
+4. For the resume/project portion:
+   - Use the actual resume information provided below.
+   - STRICT ANTI-HALLUCINATION: Do NOT invent or fabricate projects, technologies, job experience, or achievements not present in the resume.`;
+    } else {
+      // Legacy "Behavioral" or custom interview type fallback
+      interviewTypeInstructions = `=====================================================
+INTERVIEW TYPE: ${interview.interviewType.toUpperCase()}
+=====================================================
+
+Conduct the interview focusing on ${interview.interviewType} assessment for the role of ${interview.role}.
+Assess the candidate's professional competencies, past experiences, problem solving, teamwork, and technical communication.`;
+    }
+
     const systemInstruction = `
 You are the AI interviewer for InterviewReady.
 
@@ -163,29 +240,30 @@ ${interview.difficulty}
 Target number of TOTAL interview questions:
 ${questionLimit}
 
+${interviewTypeInstructions}
+
+=====================================================
+RELEVANT RESUME INFORMATION
+=====================================================
+
 ${
   compactResumeContext
-    ? `Relevant Resume Information:
-
-${compactResumeContext}
+    ? `${compactResumeContext}
 
 =====================================================
-RESUME USAGE GUIDELINES
+RESUME USAGE GUIDELINES & ANTI-HALLUCINATION
 =====================================================
 
-1. Use the candidate's resume context to make the interview relevant, personalized, and engaging.
-2. HIGHEST PRIORITY - PROJECTS: Prioritize questions about the candidate's projects, technical architectures, design decisions, and technologies they specifically used.
-3. Prioritize questions about the candidate's actual projects, technical skills, and relevant experience.
-4. Ask questions that can reasonably be answered or discussed based on the candidate's verified resume details and target role.
-5. STRICT ANTI-HALLUCINATION: Do NOT claim, assume, or state that the candidate has skills, technologies, projects, or experiences that are NOT present in the provided resume context.
-6. Use the resume as context, NOT as a rigid script. Do not interrogate them mechanically on every single item.
-7. Select relevant topics dynamically based on:
-   - Target role: ${interview.role}
-   - Interview type: ${interview.interviewType}
-   - Difficulty level: ${interview.difficulty}
-   - Candidate's previous answers in this session`
-    : `Relevant Resume Information:
-No resume information was provided for this candidate. Conduct the interview based on the target role (${interview.role}), interview type (${interview.interviewType}), and difficulty (${interview.difficulty}).`
+1. When asking resume/project-based questions, prioritize the candidate's actual projects, technical architectures, design decisions, and technologies listed above.
+2. STRICT ANTI-HALLUCINATION: Do NOT claim, assume, or state that the candidate has skills, technologies, projects, or experiences that are NOT present in the provided resume context.
+3. Do not invent: technologies, project features, metrics, companies, responsibilities, certifications, or achievements.
+4. If the resume is missing specific details, ask open-ended questions about what IS in the resume context.`
+    : `No resume information was provided for this candidate.
+${
+  interview.interviewType === "Resume-Based"
+    ? "NOTE: No resume context is uploaded. Ask the candidate directly about their real-world software projects, architectures they have built, technologies they used, and technical challenges they overcame."
+    : `Conduct the interview based on the target role (${interview.role}), interview type (${interview.interviewType}), and difficulty (${interview.difficulty}).`
+}`
 }
 
 =====================================================
@@ -203,8 +281,8 @@ This includes:
 - Clarification questions
 - Deeper-probing questions
 - Scenario questions
-- Technical questions
-- Behavioral questions
+- Role-specific technical questions
+- Resume & project-based questions
 
 There is NO separate main-question count.
 
@@ -679,11 +757,15 @@ export const completeLiveInterviewController = async (
 
     const rawSessionId = req.headers["x-session-id"] || req.body?.sessionId;
     const sessionId = typeof rawSessionId === "string" ? rawSessionId : undefined;
+    const rawElapsed = req.body?.elapsedSeconds;
+    const elapsedSeconds =
+      typeof rawElapsed === "number" && Number.isFinite(rawElapsed) ? rawElapsed : undefined;
 
     const result = await completeLiveInterview({
       interviewId,
       userId: req.userId,
       sessionId,
+      elapsedSeconds,
     });
 
     res.status(200).json(result);
@@ -804,11 +886,15 @@ export const leaveLiveInterviewController = async (
 
     const rawSessionId = req.headers["x-session-id"] || req.body?.sessionId;
     const sessionId = typeof rawSessionId === "string" ? rawSessionId : undefined;
+    const rawElapsed = req.body?.elapsedSeconds;
+    const elapsedSeconds =
+      typeof rawElapsed === "number" && Number.isFinite(rawElapsed) ? rawElapsed : undefined;
 
     const result = await leaveLiveInterview({
       interviewId,
       userId: req.userId,
       sessionId,
+      elapsedSeconds,
     });
 
     res.status(200).json(result);
