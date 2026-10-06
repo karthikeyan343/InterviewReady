@@ -1,4 +1,5 @@
 import { Response } from "express";
+import path from "path";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import { AuthRequest } from "../middleware/authMiddleware.js";
@@ -7,6 +8,7 @@ import Resume from "../models/Resume.js";
 import {
   validateResume,
   RESUME_CONFIDENCE_THRESHOLD,
+  validateResumeTextDeterministic,
 } from "../services/resumeValidationService.js";
 
 const BUCKET_NAME = "resumes";
@@ -32,12 +34,14 @@ export const uploadResume = async (
 
     const file = req.file;
 
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExtensions = [".pdf", ".docx"];
     const allowedTypes = [
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
 
-    if (!allowedTypes.includes(file.mimetype)) {
+    if (!allowedExtensions.includes(ext) || !allowedTypes.includes(file.mimetype)) {
       res.status(400).json({
         message: "Only PDF and DOCX files are allowed",
       });
@@ -50,24 +54,36 @@ export const uploadResume = async (
 
     let extractedText = "";
 
-    if (file.mimetype === "application/pdf") {
-      const parser = new PDFParse({
-        data: new Uint8Array(file.buffer),
-      });
+    try {
+      if (file.mimetype === "application/pdf") {
+        const parser = new PDFParse({
+          data: new Uint8Array(file.buffer),
+        });
 
-      try {
-        const pdfData = await parser.getText();
+        try {
+          const pdfData = await parser.getText();
 
-        extractedText = pdfData.text;
-      } finally {
-        await parser.destroy();
+          extractedText = pdfData.text;
+        } finally {
+          await parser.destroy();
+        }
+      } else {
+        const docxData = await mammoth.extractRawText({
+          buffer: file.buffer,
+        });
+
+        extractedText = docxData.value;
       }
-    } else {
-      const docxData = await mammoth.extractRawText({
-        buffer: file.buffer,
+    } catch (parseError: any) {
+      console.error(
+        "[Resume Extraction] Failed to parse document:",
+        parseError?.message || parseError
+      );
+      res.status(400).json({
+        message:
+          "The uploaded file appears to be corrupted or unreadable. Please upload a valid PDF or DOCX file.",
       });
-
-      extractedText = docxData.value;
+      return;
     }
 
     extractedText = extractedText.trim();
@@ -79,18 +95,16 @@ export const uploadResume = async (
       return;
     }
 
-    // Two-layer validation (deterministic + semantic AI) BEFORE Supabase storage
+    // Two-layer validation (deterministic with best-effort semantic AI) BEFORE Supabase storage
     let validationResult;
     try {
       validationResult = await validateResume(extractedText);
-    } catch (valError: any) {
-      console.error("Resume validation service error:", valError);
-      res.status(503).json({
-        message:
-          "Resume validation service is temporarily unavailable. Please try again in a few moments.",
-        error: valError?.message || "Validation service failure",
-      });
-      return;
+    } catch (unexpectedValError: any) {
+      console.warn(
+        "[Resume Validation] Unexpected validation exception, falling back to deterministic validation:",
+        unexpectedValError?.message || unexpectedValError
+      );
+      validationResult = validateResumeTextDeterministic(extractedText);
     }
 
     if (
@@ -128,6 +142,8 @@ export const uploadResume = async (
       return;
     }
 
+    console.log("Resume successfully uploaded to Supabase.");
+
     // ONLY after successful Supabase upload: create or update Resume MongoDB document
     if (existingResume) {
       const oldStoragePath = existingResume.storagePath;
@@ -144,6 +160,8 @@ export const uploadResume = async (
         await supabase.storage.from(BUCKET_NAME).remove([storagePath]);
         throw dbError;
       }
+
+      console.log("Resume successfully persisted to MongoDB.");
 
       // ONLY delete old resume from Supabase after successful new resume storage
       if (oldStoragePath && oldStoragePath !== storagePath) {
@@ -187,6 +205,8 @@ export const uploadResume = async (
       await supabase.storage.from(BUCKET_NAME).remove([storagePath]);
       throw dbError;
     }
+
+    console.log("Resume successfully persisted to MongoDB.");
 
     res.status(201).json({
       message: "Resume uploaded successfully",

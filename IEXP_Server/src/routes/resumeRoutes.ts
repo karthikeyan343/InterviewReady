@@ -8,7 +8,9 @@ import {
 
 import { protect } from "../middleware/authMiddleware.js";
 
-import upload from "../middleware/uploadMiddleware.js";
+import {
+  handleResumeUpload,
+} from "../middleware/uploadMiddleware.js";
 
 const router = Router();
 
@@ -27,7 +29,7 @@ router.get(
 router.post(
   "/upload",
   protect,
-  upload.single("resume"),
+  handleResumeUpload,
   uploadResume
 );
 

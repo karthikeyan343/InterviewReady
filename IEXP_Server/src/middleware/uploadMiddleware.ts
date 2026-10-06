@@ -1,7 +1,10 @@
 import multer from "multer";
 import path from "path";
+import { Request, Response, NextFunction } from "express";
 
 const storage = multer.memoryStorage();
+
+const allowedExtensions = [".pdf", ".docx"];
 
 const fileFilter: multer.Options["fileFilter"] = (
   req,
@@ -12,14 +15,23 @@ const fileFilter: multer.Options["fileFilter"] = (
     .extname(file.originalname)
     .toLowerCase();
 
+  if (!allowedExtensions.includes(extension)) {
+    callback(new Error("Only PDF and DOCX files are allowed"));
+    return;
+  }
+
   const isPdf =
-    extension === ".pdf" ||
-    file.mimetype === "application/pdf";
+    extension === ".pdf" &&
+    (file.mimetype === "application/pdf" ||
+      file.mimetype === "application/x-pdf" ||
+      file.mimetype === "application/octet-stream");
 
   const isDocx =
-    extension === ".docx" ||
-    file.mimetype ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    extension === ".docx" &&
+    (file.mimetype ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.mimetype === "application/octet-stream" ||
+      file.mimetype === "application/zip");
 
   if (isPdf) {
     file.mimetype = "application/pdf";
@@ -30,7 +42,6 @@ const fileFilter: multer.Options["fileFilter"] = (
   if (isDocx) {
     file.mimetype =
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
     callback(null, true);
     return;
   }
@@ -46,4 +57,32 @@ const upload = multer({
   fileFilter,
 });
 
-export default upload;
+export const handleResumeUpload = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  upload.single("resume")(req, res, (err: any) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          res.status(400).json({
+            message: "File size exceeds the 5 MB limit. Please upload a smaller file.",
+          });
+          return;
+        }
+        res.status(400).json({
+          message: err.message,
+        });
+        return;
+      }
+      res.status(400).json({
+        message: err.message || "Invalid file upload",
+      });
+      return;
+    }
+    next();
+  });
+};
+
+export default upload;

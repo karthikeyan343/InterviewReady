@@ -100,9 +100,19 @@ export const validateResumeTextDeterministic = (
     };
   }
 
+  // Calculate heuristic confidence (deterministic confidence score >= 0.7)
+  let heuristicConfidence = 0.8;
+  if (hasContactSignal && detectedSections >= 2) {
+    heuristicConfidence = 0.95;
+  } else if (hasContactSignal && detectedSections >= 1) {
+    heuristicConfidence = 0.9;
+  } else if (detectedSections >= 2) {
+    heuristicConfidence = 0.85;
+  }
+
   return {
     isResume: true,
-    confidence: 0.5,
+    confidence: heuristicConfidence,
     reason: "Deterministic checks passed. Meaningful resume signals detected.",
   };
 };
@@ -163,6 +173,12 @@ CLASSIFICATION RULES:
 Do not include any markdown formatting, backticks, or other text outside the JSON object.
 `;
 
+  const OPENROUTER_TIMEOUT_MS = 6000;
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    abortController.abort();
+  }, OPENROUTER_TIMEOUT_MS);
+
   let response: Response;
   try {
     response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -188,8 +204,14 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         ],
         temperature: 0.1,
       }),
+      signal: abortController.signal,
     });
   } catch (networkError: any) {
+    if (networkError?.name === "AbortError" || abortController.signal.aborted) {
+      throw new Error(
+        `Resume validation timed out after ${OPENROUTER_TIMEOUT_MS}ms`
+      );
+    }
     console.error(
       "[Resume Validation] Network connection error:",
       networkError
@@ -199,6 +221,8 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
         networkError?.message || String(networkError)
       }`
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
@@ -326,8 +350,11 @@ Do not include any markdown formatting, backticks, or other text outside the JSO
 
 /**
  * Validates extracted resume text using a two-layer validation strategy:
- * Layer 1: Deterministic structure and keyword checks.
- * Layer 2: Semantic AI classification via OpenRouter.
+ * Layer 1: Deterministic structure and keyword checks (mandatory gate).
+ * Layer 2: Semantic AI classification via OpenRouter (best-effort secondary validation).
+ *
+ * If OpenRouter has a technical failure (e.g. rate limit, timeout, service down),
+ * the system safely falls back to the deterministic validation result.
  */
 export const validateResume = async (
   extractedText: string
@@ -338,6 +365,46 @@ export const validateResume = async (
     return deterministicResult;
   }
 
-  // Layer 2: Semantic AI validation
-  return await validateResumeTextSemantic(extractedText);
+  console.log("Resume deterministic validation passed.");
+
+  // Check OpenRouter environment configuration
+  const apiKey = process.env.OPENROUTER_RESUME_VALIDATION_API_KEY;
+  const model = process.env.OPENROUTER_RESUME_VALIDATION_MODEL;
+  if (!apiKey || !apiKey.trim() || !model || !model.trim()) {
+    console.warn(
+      "[Resume Validation] OpenRouter credentials not configured. OpenRouter unavailable; falling back to deterministic validation."
+    );
+    console.log("Resume accepted using deterministic fallback.");
+    return deterministicResult;
+  }
+
+  console.log("Attempting semantic resume validation...");
+
+  // Layer 2: Semantic AI validation (best-effort)
+  try {
+    const semanticResult = await validateResumeTextSemantic(extractedText);
+
+    if (
+      !semanticResult.isResume ||
+      semanticResult.confidence < RESUME_CONFIDENCE_THRESHOLD
+    ) {
+      console.log(
+        `OpenRouter semantic validation rejected resume. Reason: ${semanticResult.reason}`
+      );
+      return semanticResult;
+    }
+
+    console.log(
+      `OpenRouter semantic validation passed with confidence ${semanticResult.confidence}.`
+    );
+    return semanticResult;
+  } catch (openRouterError: any) {
+    console.warn(
+      `[Resume Validation] OpenRouter unavailable; falling back to deterministic validation. Reason: ${
+        openRouterError?.message || String(openRouterError)
+      }`
+    );
+    console.log("Resume accepted using deterministic fallback.");
+    return deterministicResult;
+  }
 };

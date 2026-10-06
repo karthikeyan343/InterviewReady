@@ -148,6 +148,7 @@ const ResumeStatusCard: React.FC = () => {
 
       if (!response.ok) {
         throw new Error(
+          result.reason ||
           result.message ||
             "Failed to upload resume"
         );

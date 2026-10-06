@@ -42,13 +42,23 @@ const ResumePage: React.FC = () => {
     setError("");
     setMessage("");
 
-    const allowedTypes = [
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ];
+    const isPdf =
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf");
 
-    if (!allowedTypes.includes(file.type)) {
+    const isDocx =
+      file.type ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      file.name.toLowerCase().endsWith(".docx");
+
+    if (!isPdf && !isDocx) {
       setError("Only PDF and DOCX files are allowed.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File size must be less than 5 MB.");
       event.target.value = "";
       return;
     }
@@ -79,7 +89,11 @@ const ResumePage: React.FC = () => {
       const resData = await response.json();
 
       if (!response.ok) {
-        throw new Error(resData?.message || "Failed to upload resume.");
+        throw new Error(
+          resData?.reason ||
+          resData?.message ||
+          "Failed to upload resume."
+        );
       }
 
       invalidateResume();
