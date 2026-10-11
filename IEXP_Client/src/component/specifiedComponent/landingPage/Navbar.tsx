@@ -6,17 +6,16 @@ import {
   Container,
   Dialog,
   DialogContent,
-  Drawer,
   IconButton,
   Typography,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { useNavigate } from "react-router-dom";
 
 import logo from "../../../assets/LogoIR.png";
 import { useServerWakeup } from "../../../context/ServerWakeupContext";
+import MobileNavDrawer from "./MobileNavDrawer";
 
 const navItems = [
   { label: "Home", href: "#home" },
@@ -32,6 +31,7 @@ const Navbar: React.FC = () => {
   const [isVisible, setIsVisible] = useState(true);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<string>("#home");
 
   const lastScrollYRef = useRef(0);
   const isVisibleRef = useRef(true);
@@ -39,6 +39,47 @@ const Navbar: React.FC = () => {
   // Popup state: null = closed, "/login" | "/register" = pending destination
   const [pendingDest, setPendingDest] = useState<string | null>(null);
   const [popupError, setPopupError] = useState(false);
+
+  // Dynamic tracking of active landing page section
+  useEffect(() => {
+    const sectionIds = ["home", "features", "how-it-works", "about-us"];
+
+    const handleActiveScroll = () => {
+      const scrollY = window.scrollY;
+      const viewportHeight = window.innerHeight;
+
+      if (scrollY < 120) {
+        setActiveSection("#home");
+        return;
+      }
+
+      if (
+        window.innerHeight + scrollY >=
+        document.documentElement.scrollHeight - 100
+      ) {
+        setActiveSection("#about-us");
+        return;
+      }
+
+      let current = "home";
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= viewportHeight * 0.45 && rect.bottom >= 80) {
+          current = id;
+        }
+      }
+      setActiveSection(`#${current}`);
+    };
+
+    window.addEventListener("scroll", handleActiveScroll, { passive: true });
+    handleActiveScroll();
+
+    return () => {
+      window.removeEventListener("scroll", handleActiveScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const SCROLL_THRESHOLD = 8;
@@ -99,6 +140,7 @@ const Navbar: React.FC = () => {
   }, []);
 
   const handleNavClick = (href: string) => {
+    setActiveSection(href);
     setMobileOpen(false);
 
     if (href.startsWith("#")) {
@@ -552,6 +594,7 @@ const Navbar: React.FC = () => {
           {/* Mobile hamburger */}
           <IconButton
             onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation menu"
             sx={{
               display: {
                 xs: "flex",
@@ -569,121 +612,13 @@ const Navbar: React.FC = () => {
       </Box>
 
       {/* ── Mobile Drawer ── */}
-      <Drawer
-        anchor="right"
+      <MobileNavDrawer
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
-        slotProps={{
-          paper: {
-            sx: {
-              width: {
-                xs: "82%",
-                sm: "360px",
-              },
-              p: 3,
-              fontFamily: '"Manrope", sans-serif',
-            },
-          },
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mb: 5,
-          }}
-        >
-          <Box
-            component="img"
-            src={logo}
-            alt="InterviewReady"
-            sx={{
-              width: "155px",
-            }}
-          />
-
-          <IconButton onClick={() => setMobileOpen(false)}>
-            <CloseIcon />
-          </IconButton>
-        </Box>
-
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 1,
-          }}
-        >
-          {navItems.map((item) => (
-            <Typography
-              key={item.label}
-              component="a"
-              href={item.href}
-              onClick={(event) => {
-                if (item.href.startsWith("#")) {
-                  event.preventDefault();
-                  handleNavClick(item.href);
-                }
-              }}
-              sx={{
-                textDecoration: "none",
-                color: "#17203f",
-                fontFamily: '"Manrope", sans-serif',
-                fontSize: "16px",
-                fontWeight: 600,
-                px: 2,
-                py: 1.5,
-                borderRadius: "10px",
-
-                "&:hover": {
-                  backgroundColor: "#f3f6ff",
-                  color: "#1769e0",
-                },
-              }}
-            >
-              {item.label}
-            </Typography>
-          ))}
-
-          <Box
-            sx={{
-              mt: 3,
-              display: "flex",
-              flexDirection: "column",
-              gap: 1.5,
-            }}
-          >
-            <Button
-              onClick={() => handleAuthNav("/login")}
-              sx={{
-                fontFamily: '"Manrope", sans-serif',
-                fontWeight: 700,
-                textTransform: "none",
-                color: "#17203f",
-              }}
-            >
-              Sign In
-            </Button>
-
-            <Button
-              onClick={() => handleAuthNav("/register")}
-              variant="contained"
-              sx={{
-                height: "46px",
-                borderRadius: "10px",
-                fontFamily: '"Manrope", sans-serif',
-                fontWeight: 700,
-                textTransform: "none",
-                background:
-                  "linear-gradient(135deg, #2878f0 0%, #1769e0 100%)",
-              }}
-            >
-              Get Started
-            </Button>
-          </Box>
-        </Box>
-      </Drawer>
+        activeSection={activeSection}
+        onNavClick={handleNavClick}
+        onAuthNav={handleAuthNav}
+      />
     </>
   );
 };
