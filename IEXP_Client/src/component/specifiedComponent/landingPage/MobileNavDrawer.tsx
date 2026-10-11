@@ -128,7 +128,7 @@ const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
             src={logo}
             alt="InterviewReady"
             sx={{
-              height: { xs: "32px", sm: "36px" },
+              height: { xs: "50px", sm: "54px" },
               width: "auto",
               display: "block",
             }}
