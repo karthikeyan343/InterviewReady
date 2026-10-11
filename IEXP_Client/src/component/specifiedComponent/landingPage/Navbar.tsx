@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -29,19 +29,68 @@ const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const { status, ensureReady, retry } = useServerWakeup();
 
+  const [isVisible, setIsVisible] = useState(true);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const lastScrollYRef = useRef(0);
+  const isVisibleRef = useRef(true);
 
   // Popup state: null = closed, "/login" | "/register" = pending destination
   const [pendingDest, setPendingDest] = useState<string | null>(null);
   const [popupError, setPopupError] = useState(false);
 
   useEffect(() => {
+    const SCROLL_THRESHOLD = 8;
+
     const handleScroll = () => {
-      setScrolled(window.scrollY > 30);
+      const currentScrollY = Math.max(0, window.scrollY);
+
+      // 1. Floating pill styling (after initial 30px)
+      setScrolled(currentScrollY > 30);
+
+      // 2. Measure hero section boundary
+      const heroEl = document.getElementById("home");
+      const heroHeight = heroEl ? heroEl.offsetHeight : window.innerHeight;
+      // Allow user to view the full hero before hide-on-scroll-down activates
+      const heroThreshold = Math.max(100, heroHeight - 80);
+
+      const deltaY = currentScrollY - lastScrollYRef.current;
+
+      // 3. If within or above hero boundary, navbar is always visible
+      if (currentScrollY <= heroThreshold) {
+        if (!isVisibleRef.current) {
+          isVisibleRef.current = true;
+          setIsVisible(true);
+        }
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      // 4. Past hero boundary: ignore tiny trackpad / mousewheel jitters
+      if (Math.abs(deltaY) < SCROLL_THRESHOLD) {
+        return;
+      }
+
+      // 5. Scroll direction handling past the hero
+      if (deltaY > 0) {
+        // Scrolling DOWN past hero -> smoothly hide
+        if (isVisibleRef.current) {
+          isVisibleRef.current = false;
+          setIsVisible(false);
+        }
+      } else {
+        // Scrolling UP anywhere on the page -> smoothly reveal
+        if (!isVisibleRef.current) {
+          isVisibleRef.current = true;
+          setIsVisible(true);
+        }
+      }
+
+      lastScrollYRef.current = currentScrollY;
     };
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
 
     return () => {
@@ -264,7 +313,11 @@ const Navbar: React.FC = () => {
 
           left: "50%",
 
-          transform: "translateX(-50%)",
+          transform: isVisible || mobileOpen
+            ? "translate(-50%, 0)"
+            : "translate(-50%, -140%)",
+
+          pointerEvents: isVisible || mobileOpen ? "auto" : "none",
 
           width: {
             xs: scrolled ? "calc(100% - 20px)" : "100%",
@@ -297,7 +350,7 @@ const Navbar: React.FC = () => {
           WebkitBackdropFilter: scrolled ? "blur(16px)" : "none",
 
           transition:
-            "top 0.3s ease, width 0.3s ease, max-width 0.3s ease, border-radius 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease, border 0.3s ease",
+            "transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), top 0.3s ease, width 0.3s ease, max-width 0.3s ease, border-radius 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease, border 0.3s ease",
 
           fontFamily: '"Manrope", sans-serif',
         }}

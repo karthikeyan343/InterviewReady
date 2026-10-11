@@ -1,9 +1,21 @@
+import React from "react";
 import { Box, Button, Container, Typography } from "@mui/material";
-import { ArrowForward, PlayArrow } from "@mui/icons-material";
+import {
+  ArrowForward,
+  PlayArrow,
+  ChatBubbleOutlined,
+  AutoAwesomeOutlined,
+  TrendingUp,
+  DescriptionOutlined,
+  ChevronRight,
+  Mic,
+  CallEnd,
+  Videocam,
+} from "@mui/icons-material";
 import { Link } from "react-router-dom";
-import heroBackground from "../../../assets/IRBgImg3.png";
+import heroBgUnified from "../../../assets/HeroBgUnified.png";
 
-const HeroSection = () => {
+const HeroSection: React.FC = () => {
   return (
     <Box
       id="home"
@@ -11,263 +23,530 @@ const HeroSection = () => {
       sx={{
         position: "relative",
         width: "100%",
-        minHeight: "100vh",
-
+        boxSizing: "border-box",
+        minHeight: { xs: "100vh", md: "100svh" },
+        height: { md: "100svh" },
         display: "flex",
-        alignItems: {
-          xs: "flex-start",
-          md: "flex-start",
+        flexDirection: "column",
+        justifyContent: "flex-start",
+        alignItems: "space-between",
+        backgroundColor: "#FFFFFF",
+        backgroundImage: {
+          xs: `linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.55) 60%, rgba(255, 255, 255, 0.2) 100%), url(${heroBgUnified})`,
+          md: `url(${heroBgUnified})`,
         },
-
-        backgroundImage: `url(${heroBackground})`,
         backgroundRepeat: "no-repeat",
         backgroundSize: "cover",
-
         backgroundPosition: {
-          xs: "76% center",
-          sm: "72% center",
-          md: "center center",
-          lg: "center center",
+          xs: "85% bottom",
+          sm: "80% bottom",
+          md: "right bottom",
         },
-
         fontFamily: '"Manrope", sans-serif',
-        overflow: "hidden",
+        overflowX: "hidden",
+        overflowY: { xs: "visible", md: "hidden" },
+        pt: {
+          xs: "84px",
+          sm: "88px",
+          md: "76px",
+        },
+        pb: {
+          xs: "36px",
+          sm: "44px",
+          md: "24px",
+        },
+        "@media (max-height: 640px) and (min-width: 900px)": {
+          minHeight: "640px",
+          height: "auto",
+        },
+        "@keyframes pulseDot": {
+          "0%, 100%": {
+            transform: "scale(1)",
+            opacity: 1,
+          },
+          "50%": {
+            transform: "scale(1.25)",
+            opacity: 0.6,
+          },
+        },
+        "@keyframes floatCard1": {
+          "0%, 100%": {
+            transform: "translateY(0px)",
+          },
+          "50%": {
+            transform: "translateY(-6px)",
+          },
+        },
+        "@keyframes floatCard2": {
+          "0%, 100%": {
+            transform: "translateY(0px)",
+          },
+          "50%": {
+            transform: "translateY(-5px)",
+          },
+        },
+        "@keyframes floatCard3": {
+          "0%, 100%": {
+            transform: "translateY(0px)",
+          },
+          "50%": {
+            transform: "translateY(-7px)",
+          },
+        },
       }}
     >
-      {/* Mobile background overlay gradient */}
-      <Box
-        sx={{
-          position: "absolute",
-          inset: 0,
-          display: {
-            xs: "block",
-            sm: "none",
-          },
-          background:
-            "linear-gradient(90deg, rgba(244,249,255,0.92) 0%, rgba(244,249,255,0.70) 44%, rgba(244,249,255,0.10) 100%)",
-          pointerEvents: "none",
-        }}
-      />
-
       <Container
         maxWidth={false}
         sx={{
           position: "relative",
-          zIndex: 1,
-
+          zIndex: 2,
           width: "100%",
-          maxWidth: "1400px",
+          maxWidth: "1440px",
           mx: "auto",
-
           px: {
             xs: 2.5,
             sm: 4,
             md: 5,
             lg: 6,
           },
-
-          pt: {
-            xs: "90px",
-            sm: "115px",
-            md: "115px",
-            lg: "110px",
+          // The section includes 76px top + 24px bottom padding on desktop.
+          // Keep the row inside the available section content height.
+          height: {
+            xs: "auto",
+            md: "calc(100svh - 100px)",
           },
-
-          pb: {
-            xs: "45px",
-            sm: "50px",
-            md: "45px",
-            lg: "40px",
-          },
-
+          minHeight: 0,
           display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-start",
+          flexDirection: { xs: "column", md: "row" },
+          alignItems: "stretch",
+          justifyContent: "space-between",
+          // Column widths already occupy nearly all available space; avoid
+          // adding a second large gap that squeezes the hero artwork/text.
+          gap: { xs: 4, md: 0, lg: 1 },
         }}
       >
-        {/* Main hero focal content (Badge, Heading, Subtitle, Buttons) */}
+        {/* ── Left Column: Distributed Vertically Across Full Viewport Height on Desktop ── */}
         <Box
           sx={{
             width: {
               xs: "100%",
-              sm: "580px",
-              md: "570px",
-              lg: "700px",
+              md: "46%",
+              lg: "45%",
+              xl: "44%",
             },
-            maxWidth: "100%",
+            maxWidth: {
+              xs: "100%",
+              md: "580px",
+              lg: "620px",
+            },
+            height: {
+              xs: "auto",
+              md: "100%",
+            },
+            boxSizing: "border-box",
+            // The source design places the copy lower than the navbar and
+            // keeps the benefit row above the bottom edge on shorter screens.
+            paddingTop: { md: "clamp(42px, 6.6vh, 50px)" },
+            paddingBottom: { md: "clamp(48px, 9vh, 68px)" },
             display: "flex",
             flexDirection: "column",
-            justifyContent: "flex-start",
-            pt: {
-              xs: 1,
-              sm: 2,
-              md: 1,
-            },
+            justifyContent: { xs: "flex-start", md: "space-between" },
+            flexShrink: 0,
+            zIndex: 3,
           }}
         >
-          {/* Badge shown at top with distinct gap */}
+          {/* Top Content Block: Badge, Heading, Subtitle, Buttons */}
           <Box
             sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              px: { xs: 1.6, sm: 1.8 },
-              py: { xs: 1, sm: 0.8 },
-              borderRadius: "20px",
-              backgroundColor: {
-                xs: "rgba(255, 255, 255, 0.88)",
-              },
-              border: {
-                xs: "1px solid rgba(20, 104, 242, 0.16)",
-              },
-              backdropFilter: { xs: "blur(8px)", sm: "none" },
-              WebkitBackdropFilter: { xs: "blur(8px)", sm: "none" },
-              width: "fit-content",
-              mb: {
-                xs: 2.8,
-                sm: 2.5,
-                md: 3,
-              },
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              justifyContent: "space-evenly",
+              width: "100%",
+              height: '90%',
             }}
           >
+            {/* Pill Badge */}
             <Box
               sx={{
-                width: { xs: "8px", sm: "7px", md: "8px" },
-                height: { xs: "8px", sm: "7px", md: "8px" },
-                borderRadius: "50%",
-                backgroundColor: "#EF4444",
-                boxShadow: "0 0 8px rgba(239, 68, 68, 0.5)",
-                flexShrink: 0,
-                animation: "blinkDot 1.2s ease-in-out infinite",
-
-                "@keyframes blinkDot": {
-                  "0%, 100%": {
-                    opacity: 1,
-                    transform: "scale(1)",
-                  },
-                  "50%": {
-                    opacity: 0.25,
-                    transform: "scale(0.75)",
-                  },
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                px: { xs: 1.5, sm: 1.8, md: 2 },
+                py: { xs: 0.65, sm: 0.7, md: "clamp(5px, 0.7vh, 7px)" },
+                borderRadius: "50px",
+                backgroundColor: "rgba(255, 255, 255, 0.94)",
+                border: "1px solid rgba(20, 104, 242, 0.16)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                width: "fit-content",
+                mb: {
+                  xs: 1.8,
+                  sm: 2,
+                  md: "clamp(12px, 1.8vh, 18px)",
                 },
+                boxShadow: "0 2px 10px rgba(20, 104, 242, 0.05)",
+                flexShrink: 0,
               }}
-            />
+            >
+              {/* Blue dot */}
+              <Box
+                sx={{
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  backgroundColor: "#f21414aa",
+                  boxShadow: "0 0 8px rgba(242, 20, 20, 0.57)",
+                  flexShrink: 0,
+                  animation: "pulseDot 2s ease-in-out infinite",
+                }}
+              />
+              <Typography
+                component="span"
+                sx={{
+                  color: "#475569",
+                  fontFamily: '"Manrope", sans-serif',
+                  fontSize: {
+                    xs: "10.5px",
+                    sm: "11.5px",
+                    md: "12px",
+                  },
+                  fontWeight: 700,
+                  letterSpacing: {
+                    xs: "1.1px",
+                    sm: "1.5px",
+                  },
+                  lineHeight: 1.3,
+                  textTransform: "uppercase",
+                }}
+              >
+                AI-POWERED INTERVIEW PREPARATION
+              </Typography>
+            </Box>
 
+            {/* Heading */}
+            <Typography
+              component="h1"
+              sx={{
+                color: "#071638",
+                fontFamily: '"Manrope", sans-serif',
+                fontSize: {
+                  xs: "34px",
+                  sm: "42px",
+                  md: "clamp(42px, 2.7vw + 1.2vh, 50px)",
+                  lg: "clamp(48px, 3.1vw + 1.2vh, 58px)",
+                  xl: "60px",
+                },
+                lineHeight: {
+                  xs: 1.15,
+                  sm: 1.12,
+                  md: 1.08,
+                },
+                fontWeight: 800,
+                letterSpacing: {
+                  xs: "-1px",
+                  sm: "-1.5px",
+                  md: "-2px",
+                },
+                mb: {
+                  xs: 1.8,
+                  sm: 2,
+                  md: "clamp(12px, 1.6vh, 18px)",
+                },
+                flexShrink: 0,
+              }}
+            >
+              Practice Smarter.
+              <br />
+              Get Interview
+              <br />
+              <Box
+                component="span"
+                sx={{
+                  color: "#1468F2",
+                  fontFamily: '"Manrope", sans-serif',
+                }}
+              >
+                Ready.
+              </Box>
+            </Typography>
+
+            {/* Subtitle */}
             <Typography
               component="p"
               sx={{
-                m: 0,
-                color: "#475569",
+                color: "#4A5D8A",
                 fontFamily: '"Manrope", sans-serif',
                 fontSize: {
-                  xs: "11.1px",
-                  sm: "12px",
-                  md: "15px",
+                  xs: "14.5px",
+                  sm: "15.5px",
+                  md: "clamp(14.5px, 0.9vw, 16.5px)",
                 },
-                fontWeight: 700,
-                letterSpacing: {
-                  xs: "1.2px",
-                  sm: "1.7px",
-                  md: "2px",
+                fontWeight: 500,
+                lineHeight: {
+                  xs: 1.55,
+                  md: 1.5,
                 },
-                lineHeight: 1.4,
+                maxWidth: {
+                  xs: "100%",
+                  sm: "520px",
+                },
+                mb: {
+                  xs: 2.8,
+                  sm: 3,
+                  md: "clamp(18px, 2.4vh, 26px)",
+                },
+                flexShrink: 0,
               }}
             >
-              AI-POWERED INTERVIEW PREPARATION
+              Simulate real interview experiences, get AI feedback, and build
+              the confidence to land your next role.
             </Typography>
+
+            {/* Action Buttons */}
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: {
+                  xs: "column",
+                  sm: "row",
+                },
+                alignItems: {
+                  xs: "stretch",
+                  sm: "center",
+                },
+                gap: {
+                  xs: 1.4,
+                  sm: 1.8,
+                  md: 2,
+                },
+                width: {
+                  xs: "100%",
+                  sm: "fit-content",
+                },
+                mb: {
+                  xs: 3,
+                  sm: 3.5,
+                  md: 0,
+                },
+                flexShrink: 0,
+              }}
+            >
+              {/* Primary Button */}
+              <Button
+                component={Link}
+                to="/register"
+                variant="contained"
+                endIcon={<ArrowForward />}
+                sx={{
+                  minWidth: {
+                    xs: "100%",
+                    sm: "190px",
+                    lg: "210px",
+                  },
+                  height: {
+                    xs: "48px",
+                    sm: "50px",
+                    md: "clamp(46px, 5.6vh, 52px)",
+                  },
+                  px: { xs: 3, md: "clamp(20px, 1.6vw, 26px)" },
+                  borderRadius: "12px",
+                  fontFamily: '"Manrope", sans-serif',
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  letterSpacing: "0.2px",
+                  textTransform: "none",
+                  color: "#ffffff",
+                  backgroundColor: "#1468F2",
+                  boxShadow: "0 8px 22px rgba(20, 104, 242, 0.32)",
+                  transition: "all 0.25s ease",
+                  "&:hover": {
+                    backgroundColor: "#0F55CF",
+                    boxShadow: "0 10px 28px rgba(20, 104, 242, 0.42)",
+                    transform: "translateY(-1px)",
+                  },
+                  "& .MuiButton-endIcon": {
+                    marginLeft: "8px",
+                    "& svg": {
+                      fontSize: "20px",
+                    },
+                  },
+                }}
+              >
+                Start Practicing
+              </Button>
+
+              {/* Secondary Button */}
+              <Button
+                href="#how-it-works"
+                variant="outlined"
+                startIcon={
+                  <Box
+                    sx={{
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "50%",
+                      border: "1.5px solid #1468F2",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <PlayArrow
+                      sx={{
+                        fontSize: "14px",
+                        color: "#1468F2",
+                        ml: "1px",
+                      }}
+                    />
+                  </Box>
+                }
+                sx={{
+                  minWidth: {
+                    xs: "100%",
+                    sm: "180px",
+                    lg: "200px",
+                  },
+                  height: {
+                    xs: "48px",
+                    sm: "50px",
+                    md: "clamp(46px, 5.6vh, 52px)",
+                  },
+                  px: { xs: 2.5, md: "clamp(16px, 1.4vw, 22px)" },
+                  borderRadius: "12px",
+                  borderColor: "#D8E0EE",
+                  backgroundColor: "rgba(255, 255, 255, 0.92)",
+                  color: "#08194D",
+                  fontFamily: '"Manrope", sans-serif',
+                  textTransform: "none",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+                  transition: "all 0.25s ease",
+                  "&:hover": {
+                    borderColor: "#B9C8E5",
+                    backgroundColor: "#FFFFFF",
+                    boxShadow: "0 6px 18px rgba(0, 0, 0, 0.08)",
+                    transform: "translateY(-1px)",
+                  },
+                  "& .MuiButton-startIcon": {
+                    marginRight: "6px",
+                  },
+                }}
+              >
+                See How It Works
+              </Button>
+            </Box>
           </Box>
 
-          {/* Heading */}
-          <Typography
-            component="h1"
+          {/* ── Mobile Feature Badges (Screens < md) ── */}
+          <Box
             sx={{
-              mt: {
-                xs: 3,
-                sm: 0,
-                md: 0,
-                lg: 3,
-              },
-              color: "#07194D",
-              fontFamily: '"Manrope", sans-serif',
-              fontSize: {
-                xs: "40px",
-                sm: "46px",
-                md: "56px",
-                lg: "65px",
-              },
-              lineHeight: {
-                xs: 1.12,
-                sm: 1.08,
-                md: 1.06,
-              },
-              fontWeight: 800,
-              letterSpacing: {
-                xs: "-1.2px",
-                sm: "-1.5px",
-                md: "-2px",
-              },
-              mb: {
-                xs: 2.2,
-                sm: 2.3,
-                md: 2.5,
-              },
+              display: { xs: "flex", md: "none" },
+              flexWrap: "wrap",
+              justifyContent: { xs: "center", sm: "flex-start" },
+              gap: 1,
+              my: { xs: 3, sm: 2.8 },
+              width: "100%",
             }}
           >
-            Build Confidence.
-            <br />
-            Get Interview{" "}
             <Box
-              component="span"
               sx={{
-                color: "#1468F2",
-                fontFamily: '"Manrope", sans-serif',
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                px: 1.4,
+                py: 0.7,
+                borderRadius: "12px",
+                backgroundColor: "#FFFFFF",
+                border: "1px solid rgba(220, 230, 246, 0.9)",
+                boxShadow: "0 2px 8px rgba(15, 30, 80, 0.04)",
               }}
             >
-              Ready.
+              <Box
+                sx={{
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "6px",
+                  backgroundColor: "#1468F2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <ChatBubbleOutlined sx={{ fontSize: "14px", color: "#FFFFFF" }} />
+              </Box>
+              <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#08194D" }}>
+                AI Interviewer
+              </Typography>
             </Box>
-          </Typography>
 
-          {/* Subtitle */}
-          <Typography
-            component="p"
-            sx={{
-              mt: {
-                xs: 1,
-                sm: 1,
-                md: 1,
-                lg: 2,
-              },
-              mb: {
-                xs: 4,
-                sm: 3.2,
-                md: 3.5,
-              },
-              maxWidth: {
-                xs: "100%",
-                sm: "510px",
-                md: "520px",
-              },
-              color: "#4A5D8A",
-              fontFamily: '"Manrope", sans-serif',
-              fontSize: {
-                xs: "17px",
-                sm: "15px",
-                md: "17px",
-                lg: "20px",
-              },
-              fontWeight: 700,
-              lineHeight: {
-                xs: 1.6,
-                sm: 1.55,
-                md: 1.55,
-              },
-            }}
-          >
-            Simulate real interview experiences, get AI feedback, and improve
-            your skills — all in one place.
-          </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                px: 1.4,
+                py: 0.7,
+                borderRadius: "12px",
+                backgroundColor: "#FFFFFF",
+                border: "1px solid rgba(220, 230, 246, 0.9)",
+                boxShadow: "0 2px 8px rgba(15, 30, 80, 0.04)",
+              }}
+            >
+              <Box
+                sx={{
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "6px",
+                  backgroundColor: "#1468F2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <DescriptionOutlined sx={{ fontSize: "14px", color: "#FFFFFF" }} />
+              </Box>
+              <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#08194D" }}>
+                Instant Feedback
+              </Typography>
+            </Box>
 
-          {/* Buttons */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                px: 1.4,
+                py: 0.7,
+                borderRadius: "12px",
+                backgroundColor: "#FFFFFF",
+                border: "1px solid rgba(220, 230, 246, 0.9)",
+                boxShadow: "0 2px 8px rgba(15, 30, 80, 0.04)",
+              }}
+            >
+              <Box
+                sx={{
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "6px",
+                  backgroundColor: "#10B981",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <TrendingUp sx={{ fontSize: "14px", color: "#FFFFFF" }} />
+              </Box>
+              <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#08194D" }}>
+                Track Progress
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* ── Bottom 3 Feature Highlights (Never hidden or cut off on small screens) ── */}
           <Box
             sx={{
               display: "flex",
@@ -276,373 +555,692 @@ const HeroSection = () => {
                 sm: "row",
               },
               alignItems: {
-                xs: "flex-start",
+                xs: "start",
                 sm: "center",
               },
+              justifyContent: {
+                xs: "flex-start",
+                sm: "space-between",
+                md: "flex-start",
+              },
               gap: {
-                xs: 1.8,
-                sm: 2,
+                xs: 1.4,
+                sm: 1.8,
+                md: "clamp(14px, 1.8vw, 24px)",
               },
-              width: "fit-content",
-              maxWidth: "100%",
-              mt: {
-                xs: 2,
+              width: "100%",
+              maxWidth: {
+                xs: "100%",
+                sm: "600px",
+              },
+              p: {
+                xs: 1.6,
                 sm: 0,
-                md: 0,
-                lg: 1,
               },
+              borderRadius: {
+                xs: "14px",
+                sm: 0,
+              },
+              backgroundColor: {
+                xs: "transparent",
+              },
+              mt: {
+                xs: 2.2,
+                sm: 2.8,
+                md: 2.8,
+              },
+              flexShrink: 0,
+              boxSizing: "border-box",
             }}
           >
-            <Button
-              component={Link}
-              to="/register"
-              variant="contained"
-              endIcon={<ArrowForward />}
+            {/* Feature 1: Real Interview Experience */}
+            <Box
               sx={{
-                width: "auto",
-                minWidth: {
-                  xs: "210px",
-                  sm: "210px",
-                  lg: '250px',
+                display: "flex",
+                alignItems: "center",
+                gap: {
+                  xs: 1.2,
+                  sm: 1.1,
                 },
-                height: {
-                  xs: "48px",
-                  sm: "52px",
-                  lg: '55px',
+                flex: {
+                  xs: "1 1 auto",
+                  sm: "initial",
                 },
-                px: {
-                  xs: 2.5,
-                  sm: 3,
-                  lg: '3.5rem',
-                },
-                borderRadius: "8px",
-                fontFamily: '"Manrope", sans-serif',
-                fontSize: {
-                  xs: "14px",
-                  sm: "15px",
-                  lg: '18px',
-                },
-                fontWeight: 700,
-                letterSpacing: "0.1px",
-                lineHeight: 1,
-                textTransform: "none",
-                color: "#ffffff",
-                backgroundColor: "#1769e0",
-                boxShadow: "0 7px 20px rgba(23, 105, 224, 0.28)",
-
-                "&:hover": {
-                  backgroundColor: "#125bc8",
-                  boxShadow: "0 9px 24px rgba(23, 105, 224, 0.35)",
-                },
-
-                "& .MuiButton-endIcon": {
-                  marginLeft: "10px",
-                  "& svg": {
-                    fontSize: "22px",
-                  },
-                },
+                minWidth: 0,
               }}
             >
-              Start Practicing
-            </Button>
-
-            <Button
-              href="#how-it-works"
-              variant="outlined"
-              startIcon={<PlayArrow />}
-              sx={{
-                width: "auto",
-                minWidth: {
-                  xs: "185px",
-                  sm: "185px",
-                  lg: '225px',
-                },
-                height: {
-                  xs: "48px",
-                  sm: "52px",
-                  lg: '55px',
-                },
-                px: {
-                  xs: 2.5,
-                  sm: 2.5,
-                  lg: '3rem',
-                },
-                borderRadius: "8px",
-                borderColor: {
-                  xs: "rgba(216, 224, 238, 0.95)",
-                  sm: "#D8E0EE",
-                },
-                backgroundColor: "rgba(255,255,255,0.92)",
-                backdropFilter: { xs: "blur(8px)", sm: "none" },
-                WebkitBackdropFilter: { xs: "blur(8px)", sm: "none" },
-                color: "#26385E",
-                fontFamily: '"Manrope", sans-serif',
-                textTransform: "none",
-                fontSize: {
-                  xs: "14px",
-                  sm: "15px",
-                  lg: '17px',
-                },
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
-
-                "&:hover": {
-                  borderColor: "#B9C8E5",
-                  backgroundColor: "#FFFFFF",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-                },
-
-                "& .MuiButton-startIcon": {
-                  marginRight: "6px",
-                  "& svg": {
-                    fontSize: "20px",
-                    color: "#1769e0",
+              <Box
+                sx={{
+                  width: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
                   },
+                  height: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
+                  },
+                  minWidth: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
+                  },
+                  borderRadius: "10px",
+                  backgroundColor: "#EBF3FE",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <ChatBubbleOutlined
+                  sx={{
+                    fontSize: {
+                      xs: "17px",
+                      sm: "18px",
+                      md: "clamp(17px, 2vh, 19px)",
+                    },
+                    color: "#1468F2",
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 700,
+                    fontSize: {
+                      xs: "12px",
+                      sm: "12px",
+                      md: "clamp(11.5px, 0.75vw, 13px)",
+                    },
+                    color: "#08194D",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Real Interview
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 500,
+                    fontSize: {
+                      xs: "11px",
+                      sm: "11px",
+                      md: "clamp(10.5px, 0.7vw, 12px)",
+                    },
+                    color: "#202a3fff",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Experience
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Divider 1 */}
+            <Box
+              sx={{
+                display: {
+                  xs: "none",
+                  sm: "block",
                 },
+                width: "1px",
+                height: {
+                  sm: "28px",
+                  md: "clamp(24px, 2.8vh, 30px)",
+                },
+                backgroundColor: "#DCE3EF",
+                flexShrink: 0,
+              }}
+            />
+
+            {/* Feature 2: Instant AI Feedback */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: {
+                  xs: 1.2,
+                  sm: 1.1,
+                },
+                flex: {
+                  xs: "1 1 auto",
+                  sm: "initial",
+                },
+                minWidth: 0,
               }}
             >
-              See How It Works
-            </Button>
+              <Box
+                sx={{
+                  width: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
+                  },
+                  height: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
+                  },
+                  minWidth: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
+                  },
+                  borderRadius: "10px",
+                  backgroundColor: "#F3E8FF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <AutoAwesomeOutlined
+                  sx={{
+                    fontSize: {
+                      xs: "17px",
+                      sm: "18px",
+                      md: "clamp(17px, 2vh, 19px)",
+                    },
+                    color: "#9333EA",
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 700,
+                    fontSize: {
+                      xs: "12px",
+                      sm: "12px",
+                      md: "clamp(11.5px, 0.75vw, 13px)",
+                    },
+                    color: "#08194D",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Instant
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 500,
+                    fontSize: {
+                      xs: "11px",
+                      sm: "11px",
+                      md: "clamp(10.5px, 0.7vw, 12px)",
+                    },
+                    color: "#202a3fff",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  AI Feedback
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Divider 2 */}
+            <Box
+              sx={{
+                display: {
+                  xs: "none",
+                  sm: "block",
+                },
+                width: "1px",
+                height: {
+                  sm: "28px",
+                  md: "clamp(24px, 2.8vh, 30px)",
+                },
+                backgroundColor: "#DCE3EF",
+                flexShrink: 0,
+              }}
+            />
+
+            {/* Feature 3: Track Your Progress */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: {
+                  xs: 1.2,
+                  sm: 1.1,
+                },
+                flex: {
+                  xs: "1 1 auto",
+                  sm: "initial",
+                },
+                minWidth: 0,
+              }}
+            >
+              <Box
+                sx={{
+                  width: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
+                  },
+                  height: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
+                  },
+                  minWidth: {
+                    xs: "34px",
+                    sm: "36px",
+                    md: "clamp(32px, 3.8vh, 38px)",
+                  },
+                  borderRadius: "10px",
+                  backgroundColor: "#E6F9F0",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <TrendingUp
+                  sx={{
+                    fontSize: {
+                      xs: "17px",
+                      sm: "18px",
+                      md: "clamp(17px, 2vh, 19px)",
+                    },
+                    color: "#10B981",
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 700,
+                    fontSize: {
+                      xs: "12px",
+                      sm: "12px",
+                      md: "clamp(11.5px, 0.75vw, 13px)",
+                    },
+                    color: "#08194D",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Track
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 500,
+                    fontSize: {
+                      xs: "11px",
+                      sm: "11px",
+                      md: "clamp(10.5px, 0.7vw, 12px)",
+                    },
+                    color: "#202a3fff",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Your Progress
+                </Typography>
+              </Box>
+            </Box>
           </Box>
         </Box>
 
-        {/* Stats Section / Social Proof */}
+        {/* ── Right Column: Visual Stage (Proper Height & Width, Never Overlaps Left Column) ── */}
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: {
-              xs: "space-between",
-              sm: "flex-start",
-            },
-            mt: {
-              xs: 8,
-              sm: 4,
-              md: 5,
-              lg: '4.2rem',
-            },
-            width: {
-              xs: "100%",
-              sm: "fit-content",
-            },
-            maxWidth: {
-              xs: "100%",
-              sm: "580px",
-            },
-            p: {
-              xs: "13px 8px",
-              sm: "16px 20px",
-              md: 0,
-            },
-            borderRadius: {
-              xs: "14px",
-              md: 0,
-            },
-            backgroundColor: {
-              xs: "rgba(255, 255, 255, 0.82)",
-              md: "transparent",
-            },
-            backdropFilter: {
-              xs: "blur(12px)",
-              md: "none",
-            },
-            WebkitBackdropFilter: {
-              xs: "blur(12px)",
-              md: "none",
-            },
-            border: {
-              xs: "1px solid rgba(220, 230, 246, 0.9)",
-              md: "none",
-            },
-            boxShadow: {
-              xs: "0 8px 24px rgba(15, 30, 80, 0.06)",
-              md: "none",
-            },
+            display: { xs: "none", md: "flex" },
+            width: { md: "52%", lg: "54%", xl: "55%" },
+            height: "100%",
+            position: "relative",
+            alignItems: "flex-end",
+            justifyContent: "flex-end",
             flexShrink: 0,
+            overflow: "visible",
+            pointerEvents: "none",
           }}
         >
-          {/* Stat 1 */}
+          {/* Interactive Floating Stage (Cards & Call Controls) */}
           <Box
             sx={{
-              flex: { xs: 1, sm: "initial" },
-              textAlign: { xs: "center", sm: "left" },
-              flexShrink: 0,
-              px: { xs: 0.5, sm: 0 },
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              maxHeight: "100%",
+              display: "flex",
+              alignItems: "flex-end",
+              justifyContent: "flex-end",
+              pointerEvents: "none",
             }}
           >
-            <Typography
-              component="div"
+
+            {/* Card 1: AI Interviewer (Top-Right of candidate) */}
+            <Box
               sx={{
-                color: "#08194D",
-                fontFamily: '"Manrope", sans-serif',
-                fontSize: {
-                  xs: "18px",
-                  sm: "23px",
-                  md: "24px",
-                  lg: '27px',
+                position: "absolute",
+                top: { md: "8%", lg: "9%" },
+                right: { md: "1%", lg: "3%" },
+                display: "flex",
+                alignItems: "center",
+                gap: 1.3,
+                px: { md: 1.6, lg: 2 },
+                py: { md: 0.9, lg: 1.1 },
+                borderRadius: "16px",
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                border: "1px solid rgba(255, 255, 255, 0.95)",
+                boxShadow: "0 14px 34px rgba(15, 23, 42, 0.08)",
+                cursor: "pointer",
+                pointerEvents: "auto",
+                transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+                animation: "floatCard1 4.5s ease-in-out infinite",
+                zIndex: 5,
+                "&:hover": {
+                  transform: "translateY(-4px) scale(1.02)",
+                  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.14)",
                 },
-                fontWeight: 800,
-                lineHeight: 1.15,
-                letterSpacing: "-0.5px",
               }}
             >
-              1,000+
-            </Typography>
+              <Box
+                sx={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  backgroundColor: "#1468F2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: "0 4px 12px rgba(20, 104, 242, 0.3)",
+                }}
+              >
+                <ChatBubbleOutlined
+                  sx={{
+                    fontSize: "18px",
+                    color: "#FFFFFF",
+                  }}
+                />
+              </Box>
+              <Box>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 700,
+                    fontSize: { md: "12.5px", lg: "13.5px" },
+                    color: "#08194D",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  AI Interviewer
+                </Typography>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 500,
+                    fontSize: { md: "10px", lg: "11px" },
+                    color: "#64748B",
+                    lineHeight: 1.2,
+                    mt: 0.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Role-specific questions
+                </Typography>
+              </Box>
+              <ChevronRight sx={{ fontSize: "18px", color: "#94A3B8", ml: 0.2 }} />
+            </Box>
 
-            <Typography
-              component="div"
+            {/* Card 2: Instant Feedback (Middle-Left, to the left of her shoulder) */}
+            <Box
               sx={{
-                color: "#5C6F96",
-                fontFamily: '"Manrope", sans-serif',
-                fontSize: {
-                  xs: "9.5px",
-                  sm: "12px",
-                  md: "13px",
-                  lg: '15px',
+                position: "absolute",
+                top: { md: "42%", lg: "42%" },
+                left: { md: "-4%", lg: "-2%" },
+                display: "flex",
+                alignItems: "center",
+                gap: 1.3,
+                px: { md: 1.6, lg: 2 },
+                py: { md: 0.9, lg: 1.1 },
+                borderRadius: "16px",
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                border: "1px solid rgba(255, 255, 255, 0.95)",
+                boxShadow: "0 14px 34px rgba(15, 23, 42, 0.08)",
+                cursor: "pointer",
+                pointerEvents: "auto",
+                transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+                animation: "floatCard2 5s ease-in-out infinite 0.7s",
+                zIndex: 5,
+                "&:hover": {
+                  transform: "translateY(-4px) scale(1.02)",
+                  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.14)",
                 },
-                fontWeight: 600,
-                mt: 0.4,
-                letterSpacing: { xs: "-0.2px", sm: "normal" },
-                whiteSpace: "nowrap",
               }}
             >
-              Practice Sessions
-            </Typography>
-          </Box>
+              <Box
+                sx={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  backgroundColor: "#1468F2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: "0 4px 12px rgba(20, 104, 242, 0.3)",
+                }}
+              >
+                <DescriptionOutlined
+                  sx={{
+                    fontSize: "18px",
+                    color: "#FFFFFF",
+                  }}
+                />
+              </Box>
+              <Box>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 700,
+                    fontSize: { md: "12.5px", lg: "13.5px" },
+                    color: "#08194D",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Instant Feedback
+                </Typography>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 500,
+                    fontSize: { md: "10px", lg: "11px" },
+                    color: "#64748B",
+                    lineHeight: 1.2,
+                    mt: 0.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Improve your answers
+                </Typography>
+              </Box>
+              <ChevronRight sx={{ fontSize: "18px", color: "#94A3B8", ml: 0.2 }} />
+            </Box>
 
-          <Box
-            sx={{
-              width: "1px",
-              height: {
-                xs: "32px",
-                sm: "42px",
-                md: "45px",
-              },
-              mx: {
-                xs: 0.5,
-                sm: 2.5,
-                md: 3,
-              },
-              backgroundColor: "#DCE3EF",
-              flexShrink: 0,
-            }}
-          />
-
-          {/* Stat 2 */}
-          <Box
-            sx={{
-              flex: { xs: 1, sm: "initial" },
-              textAlign: { xs: "center", sm: "left" },
-              flexShrink: 0,
-              px: { xs: 0.5, sm: 0 },
-            }}
-          >
-            <Typography
-              component="div"
+            {/* Card 3: Track Progress (Middle-Right, to the right of her shoulder) */}
+            <Box
               sx={{
-                color: "#08194D",
-                fontFamily: '"Manrope", sans-serif',
-                fontSize: {
-                  xs: "18px",
-                  sm: "23px",
-                  md: "24px",
-                  lg: '27px',
+                position: "absolute",
+                top: { md: "42%", lg: "42%" },
+                right: { md: "-2%", lg: "0%" },
+                display: "flex",
+                alignItems: "center",
+                gap: 1.3,
+                px: { md: 1.6, lg: 2 },
+                py: { md: 0.9, lg: 1.1 },
+                borderRadius: "16px",
+                backgroundColor: "rgba(255, 255, 255, 0.95)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
+                border: "1px solid rgba(255, 255, 255, 0.95)",
+                boxShadow: "0 14px 34px rgba(15, 23, 42, 0.08)",
+                cursor: "pointer",
+                pointerEvents: "auto",
+                transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+                animation: "floatCard3 4.8s ease-in-out infinite 1.4s",
+                zIndex: 5,
+                "&:hover": {
+                  transform: "translateY(-4px) scale(1.02)",
+                  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.14)",
                 },
-                fontWeight: 800,
-                lineHeight: 1.15,
-                letterSpacing: "-0.5px",
               }}
             >
-              4.8/5
-            </Typography>
+              <Box
+                sx={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  backgroundColor: "#10B981",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
+                }}
+              >
+                <TrendingUp
+                  sx={{
+                    fontSize: "19px",
+                    color: "#FFFFFF",
+                  }}
+                />
+              </Box>
+              <Box>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 700,
+                    fontSize: { md: "12.5px", lg: "13.5px" },
+                    color: "#08194D",
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Track Progress
+                </Typography>
+                <Typography
+                  sx={{
+                    fontFamily: '"Manrope", sans-serif',
+                    fontWeight: 500,
+                    fontSize: { md: "10px", lg: "11px" },
+                    color: "#64748B",
+                    lineHeight: 1.2,
+                    mt: 0.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  See your growth
+                </Typography>
+              </Box>
+              <ChevronRight sx={{ fontSize: "18px", color: "#94A3B8", ml: 0.2 }} />
+            </Box>
 
-            <Typography
-              component="div"
+            {/* Floating Call Controls (Mic, End Call, Video on laptop) */}
+            <Box
               sx={{
-                color: "#5C6F96",
-                fontFamily: '"Manrope", sans-serif',
-                fontSize: {
-                  xs: "9.5px",
-                  sm: "12px",
-                  md: "13px",
-                  lg: '15px',
-                },
-                fontWeight: 600,
-                mt: 0.4,
-                letterSpacing: { xs: "-0.2px", sm: "normal" },
-                whiteSpace: "nowrap",
+                position: "absolute",
+                bottom: { md: "14%", lg: "14%" },
+                left: { md: "46%", lg: "48%" },
+                transform: "translateX(-50%)",
+                display: "flex",
+                alignItems: "center",
+                gap: 1.2,
+                zIndex: 6,
+                p: 0.7,
+                borderRadius: "32px",
+                backgroundColor: "rgba(15, 23, 42, 0.25)",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                border: "1px solid rgba(255, 255, 255, 0.25)",
+                boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
+                pointerEvents: "auto",
               }}
             >
-              Demo Rating
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{
-              width: "1px",
-              height: {
-                xs: "32px",
-                sm: "42px",
-                md: "45px",
-              },
-              mx: {
-                xs: 0.5,
-                sm: 2.5,
-                md: 3,
-              },
-              backgroundColor: "#DCE3EF",
-              flexShrink: 0,
-            }}
-          />
-
-          {/* Stat 3 */}
-          <Box
-            sx={{
-              flex: { xs: 1, sm: "initial" },
-              textAlign: { xs: "center", sm: "left" },
-              flexShrink: 0,
-              px: { xs: 0.5, sm: 0 },
-            }}
-          >
-            <Typography
-              component="div"
-              sx={{
-                color: "#08194D",
-                fontFamily: '"Manrope", sans-serif',
-                fontSize: {
-                  xs: "18px",
-                  sm: "23px",
-                  md: "24px",
-                  lg: '27px',
-                },
-                fontWeight: 800,
-                lineHeight: 1.15,
-                letterSpacing: "-0.5px",
-              }}
-            >
-              92%
-            </Typography>
-
-            <Typography
-              component="div"
-              sx={{
-                color: "#5C6F96",
-                fontFamily: '"Manrope", sans-serif',
-                fontSize: {
-                  xs: "9.5px",
-                  sm: "12px",
-                  md: "13px",
-                  lg: '15px',
-                },
-                fontWeight: 600,
-                mt: 0.4,
-                letterSpacing: { xs: "-0.2px", sm: "normal" },
-                whiteSpace: "nowrap",
-              }}
-            >
-              Would Recommend
-            </Typography>
+              <Box
+                sx={{
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "50%",
+                  backgroundColor: "rgba(30, 41, 59, 0.7)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    backgroundColor: "rgba(30, 41, 59, 0.9)",
+                    transform: "scale(1.08)",
+                  },
+                }}
+              >
+                <Mic sx={{ fontSize: "18px", color: "#FFFFFF" }} />
+              </Box>
+              <Box
+                sx={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "50%",
+                  backgroundColor: "#EF4444",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  boxShadow: "0 6px 18px rgba(239, 68, 68, 0.45)",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    backgroundColor: "#DC2626",
+                    transform: "scale(1.08)",
+                  },
+                }}
+              >
+                <CallEnd sx={{ fontSize: "20px", color: "#FFFFFF" }} />
+              </Box>
+              <Box
+                sx={{
+                  width: "38px",
+                  height: "38px",
+                  borderRadius: "50%",
+                  backgroundColor: "rgba(30, 41, 59, 0.7)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    backgroundColor: "rgba(30, 41, 59, 0.9)",
+                    transform: "scale(1.08)",
+                  },
+                }}
+              >
+                <Videocam sx={{ fontSize: "18px", color: "#FFFFFF" }} />
+              </Box>
+            </Box>
           </Box>
         </Box>
       </Container>

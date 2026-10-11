@@ -53,6 +53,7 @@ const HowItWorksSection: React.FC = () => {
       component="section"
       id="how-it-works"
       sx={{
+        scrollMarginTop: { xs: "72px", md: "84px" },
         width: "100%",
         backgroundColor: "aliceblue",
         fontFamily: '"Manrope", sans-serif',

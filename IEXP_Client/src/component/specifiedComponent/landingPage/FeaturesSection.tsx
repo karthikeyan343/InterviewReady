@@ -4,7 +4,7 @@ import ChatOutlinedIcon from "@mui/icons-material/ChatOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
 import TrackChangesOutlinedIcon from "@mui/icons-material/TrackChangesOutlined";
-import featuresBackground from "../../../assets/HeroBgIR1.png";
+// import featuresBackground from "../../../assets/HeroBgIR1.png";
 
 const features = [
   {
@@ -47,16 +47,17 @@ const FeaturesSection: React.FC = () => {
       component="section"
       id="features"
       sx={{
+        scrollMarginTop: { xs: "72px", md: "84px" },
         position: "relative",
         width: "100%",
-        backgroundImage: `url(${featuresBackground})`,
-        backgroundRepeat: "no-repeat",
-        backgroundSize: "cover",
-        backgroundPosition: {
-          xs: "center center",
-          sm: "center center",
-          md: "center center",
-        },
+        // backgroundImage: `url(${featuresBackground})`,
+        // backgroundRepeat: "no-repeat",
+        // backgroundSize: "cover",
+        // backgroundPosition: {
+        //   xs: "center center",
+        //   sm: "center center",
+        //   md: "center center",
+        // },
         fontFamily: '"Manrope", sans-serif',
         overflow: "hidden",
         py: {

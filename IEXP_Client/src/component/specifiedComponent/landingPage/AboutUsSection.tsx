@@ -42,6 +42,7 @@ const AboutUsSection: React.FC = () => {
       component="section"
       id="about-us"
       sx={{
+        scrollMarginTop: { xs: "72px", md: "84px" },
         position: "relative",
         width: "100%",
         overflow: "hidden",
