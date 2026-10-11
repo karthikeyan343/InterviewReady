@@ -16,6 +16,32 @@ import { Link } from "react-router-dom";
 import heroBgUnified from "../../../assets/HeroBgUnified.png";
 
 const HeroSection: React.FC = () => {
+  const featurePills = [
+    {
+      id: "interview",
+      title: "Real Interview",
+      subtitle: "Experience",
+      Icon: ChatBubbleOutlined,
+      color: "#1468F2",
+      iconBackground: "rgba(20, 104, 242, 0.12)",
+    },
+    {
+      id: "feedback",
+      title: "Instant",
+      subtitle: "AI Feedback",
+      Icon: AutoAwesomeOutlined,
+      color: "#9333EA",
+      iconBackground: "rgba(147, 51, 234, 0.12)",
+    },
+    {
+      id: "progress",
+      title: "Track",
+      subtitle: "Your Progress",
+      Icon: TrendingUp,
+      color: "#10B981",
+      iconBackground: "rgba(16, 185, 129, 0.12)",
+    },
+  ];
   return (
     <Box
       id="home"
@@ -549,353 +575,182 @@ const HeroSection: React.FC = () => {
           {/* ── Bottom 3 Feature Highlights (Never hidden or cut off on small screens) ── */}
           <Box
             sx={{
-              display: "flex",
-              flexDirection: {
-                xs: "column",
-                sm: "row",
+              display: "grid",
+              gridTemplateColumns: "repeat(2, max-content)",
+              justifyContent: "start",
+              alignItems: "center",
+
+              columnGap: {
+                xs: 0.8,
+                sm: 1.2,
+                md: 1.5,
               },
-              alignItems: {
-                xs: "start",
-                sm: "center",
+
+              rowGap: {
+                xs: 1,
+                sm: 1.2,
+                md: 1.4,
               },
-              justifyContent: {
-                xs: "flex-start",
-                sm: "space-between",
-                md: "flex-start",
-              },
-              gap: {
-                xs: 1.4,
-                sm: 1.8,
-                md: "clamp(14px, 1.8vw, 24px)",
-              },
-              width: "100%",
-              maxWidth: {
-                xs: "100%",
-                sm: "600px",
-              },
-              p: {
-                xs: 1.6,
-                sm: 0,
-              },
-              borderRadius: {
-                xs: "14px",
-                sm: 0,
-              },
-              backgroundColor: {
-                xs: "transparent",
-              },
+
+              width: "fit-content",
+              maxWidth: "100%",
+
               mt: {
                 xs: 2.2,
                 sm: 2.8,
-                md: 2.8,
+                md: 2,
               },
+
               flexShrink: 0,
               boxSizing: "border-box",
             }}
           >
-            {/* Feature 1: Real Interview Experience */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: {
-                  xs: 1.2,
-                  sm: 1.1,
-                },
-                flex: {
-                  xs: "1 1 auto",
-                  sm: "initial",
-                },
-                minWidth: 0,
-              }}
-            >
-              <Box
-                sx={{
-                  width: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  height: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  minWidth: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  borderRadius: "10px",
-                  backgroundColor: "#EBF3FE",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <ChatBubbleOutlined
-                  sx={{
-                    fontSize: {
-                      xs: "17px",
-                      sm: "18px",
-                      md: "clamp(17px, 2vh, 19px)",
-                    },
-                    color: "#1468F2",
-                  }}
-                />
-              </Box>
+            {featurePills.map((feature) => {
+              const Icon = feature.Icon;
+              const isLastPill = feature.id === "progress";
 
-              <Box sx={{ minWidth: 0 }}>
-                <Typography
+              return (
+                <Box
+                  key={feature.id}
                   sx={{
-                    fontFamily: '"Manrope", sans-serif',
-                    fontWeight: 700,
-                    fontSize: {
-                      xs: "12px",
-                      sm: "12px",
-                      md: "clamp(11.5px, 0.75vw, 13px)",
+                    gridColumn: isLastPill ? "1 / -1" : "auto",
+                    justifySelf: isLastPill ? "center" : "start",
+
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: {
+                      xs: 0.75,
+                      sm: 1,
                     },
-                    color: "#08194D",
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
+
+                    width: "fit-content",
+                    maxWidth: "100%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
+
+                    px: {
+                      xs: 1,
+                      sm: 1.4,
+                      md: 1.5,
+                    },
+
+                    py: {
+                      xs: 0.75,
+                      sm: 0.9,
+                      md: 1,
+                    },
+
+                    borderRadius: "999px",
+
+                    backgroundColor: "rgba(255, 255, 255, 0.42)",
+
+                    border: "1px solid rgba(255, 255, 255, 0.8)",
+
+                    backdropFilter: "blur(14px)",
+                    WebkitBackdropFilter: "blur(14px)",
+
+                    boxShadow: `
+            0 6px 18px rgba(38, 89, 170, 0.09),
+            inset 0 1px 0 rgba(255, 255, 255, 0.7)
+          `,
+
+                    transition:
+                      "transform 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease",
+
+                    "&:hover": {
+                      transform: "translateY(-2px)",
+                      backgroundColor: "rgba(255, 255, 255, 0.68)",
+                      boxShadow: "0 10px 24px rgba(38, 89, 170, 0.14)",
+                    },
                   }}
                 >
-                  Real Interview
-                </Typography>
+                  {/* Icon */}
+                  <Box
+                    sx={{
+                      width: {
+                        xs: "30px",
+                        sm: "34px",
+                      },
 
-                <Typography
-                  sx={{
-                    fontFamily: '"Manrope", sans-serif',
-                    fontWeight: 500,
-                    fontSize: {
-                      xs: "11px",
-                      sm: "11px",
-                      md: "clamp(10.5px, 0.7vw, 12px)",
-                    },
-                    color: "#202a3fff",
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Experience
-                </Typography>
-              </Box>
-            </Box>
+                      height: {
+                        xs: "30px",
+                        sm: "34px",
+                      },
 
-            {/* Divider 1 */}
-            <Box
-              sx={{
-                display: {
-                  xs: "none",
-                  sm: "block",
-                },
-                width: "1px",
-                height: {
-                  sm: "28px",
-                  md: "clamp(24px, 2.8vh, 30px)",
-                },
-                backgroundColor: "#DCE3EF",
-                flexShrink: 0,
-              }}
-            />
+                      minWidth: {
+                        xs: "30px",
+                        sm: "34px",
+                      },
 
-            {/* Feature 2: Instant AI Feedback */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: {
-                  xs: 1.2,
-                  sm: 1.1,
-                },
-                flex: {
-                  xs: "1 1 auto",
-                  sm: "initial",
-                },
-                minWidth: 0,
-              }}
-            >
-              <Box
-                sx={{
-                  width: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  height: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  minWidth: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  borderRadius: "10px",
-                  backgroundColor: "#F3E8FF",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <AutoAwesomeOutlined
-                  sx={{
-                    fontSize: {
-                      xs: "17px",
-                      sm: "18px",
-                      md: "clamp(17px, 2vh, 19px)",
-                    },
-                    color: "#9333EA",
-                  }}
-                />
-              </Box>
+                      borderRadius: "10px",
 
-              <Box sx={{ minWidth: 0 }}>
-                <Typography
-                  sx={{
-                    fontFamily: '"Manrope", sans-serif',
-                    fontWeight: 700,
-                    fontSize: {
-                      xs: "12px",
-                      sm: "12px",
-                      md: "clamp(11.5px, 0.75vw, 13px)",
-                    },
-                    color: "#08194D",
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Instant
-                </Typography>
+                      backgroundColor: feature.iconBackground,
 
-                <Typography
-                  sx={{
-                    fontFamily: '"Manrope", sans-serif',
-                    fontWeight: 500,
-                    fontSize: {
-                      xs: "11px",
-                      sm: "11px",
-                      md: "clamp(10.5px, 0.7vw, 12px)",
-                    },
-                    color: "#202a3fff",
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  AI Feedback
-                </Typography>
-              </Box>
-            </Box>
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
 
-            {/* Divider 2 */}
-            <Box
-              sx={{
-                display: {
-                  xs: "none",
-                  sm: "block",
-                },
-                width: "1px",
-                height: {
-                  sm: "28px",
-                  md: "clamp(24px, 2.8vh, 30px)",
-                },
-                backgroundColor: "#DCE3EF",
-                flexShrink: 0,
-              }}
-            />
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon
+                      sx={{
+                        fontSize: {
+                          xs: "16px",
+                          sm: "18px",
+                        },
+                        color: feature.color,
+                      }}
+                    />
+                  </Box>
 
-            {/* Feature 3: Track Your Progress */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: {
-                  xs: 1.2,
-                  sm: 1.1,
-                },
-                flex: {
-                  xs: "1 1 auto",
-                  sm: "initial",
-                },
-                minWidth: 0,
-              }}
-            >
-              <Box
-                sx={{
-                  width: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  height: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  minWidth: {
-                    xs: "34px",
-                    sm: "36px",
-                    md: "clamp(32px, 3.8vh, 38px)",
-                  },
-                  borderRadius: "10px",
-                  backgroundColor: "#E6F9F0",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <TrendingUp
-                  sx={{
-                    fontSize: {
-                      xs: "17px",
-                      sm: "18px",
-                      md: "clamp(17px, 2vh, 19px)",
-                    },
-                    color: "#10B981",
-                  }}
-                />
-              </Box>
+                  {/* Feature Text */}
+                  <Box
+                    sx={{
+                      minWidth: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontFamily: '"Manrope", sans-serif',
+                        fontWeight: 700,
 
-              <Box sx={{ minWidth: 0 }}>
-                <Typography
-                  sx={{
-                    fontFamily: '"Manrope", sans-serif',
-                    fontWeight: 700,
-                    fontSize: {
-                      xs: "12px",
-                      sm: "12px",
-                      md: "clamp(11.5px, 0.75vw, 13px)",
-                    },
-                    color: "#08194D",
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Track
-                </Typography>
+                        fontSize: {
+                          xs: "10px",
+                          sm: "12px",
+                        },
 
-                <Typography
-                  sx={{
-                    fontFamily: '"Manrope", sans-serif',
-                    fontWeight: 500,
-                    fontSize: {
-                      xs: "11px",
-                      sm: "11px",
-                      md: "clamp(10.5px, 0.7vw, 12px)",
-                    },
-                    color: "#202a3fff",
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Your Progress
-                </Typography>
-              </Box>
-            </Box>
+                        color: "#08194D",
+                        lineHeight: 1.25,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {feature.title}
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontFamily: '"Manrope", sans-serif',
+                        fontWeight: 500,
+
+                        fontSize: {
+                          xs: "9px",
+                          sm: "11px",
+                        },
+
+                        color: "#5C6F96",
+                        lineHeight: 1.25,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {feature.subtitle}
+                    </Typography>
+                  </Box>
+                </Box>
+              );
+            })}
           </Box>
         </Box>
 
