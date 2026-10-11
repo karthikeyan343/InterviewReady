@@ -175,9 +175,9 @@ const DashboardNavbar: React.FC = () => {
             alt="InterviewReady"
             sx={{
               height: {
-                xs: "28px",
-                sm: "32px",
-                md: "34px",
+                xs: "50px",
+                sm: "55px",
+                md: "60px",
               },
               width: "auto",
               display: "block",
@@ -695,7 +695,7 @@ const DashboardNavbar: React.FC = () => {
               src={logo}
               alt="InterviewReady"
               sx={{
-                height: { xs: "30px", sm: "34px" },
+                height: { xs: "50px", sm: "54px" },
                 width: "auto",
                 display: "block",
               }}
