@@ -13,7 +13,7 @@ import {
   Videocam,
 } from "@mui/icons-material";
 import { Link } from "react-router-dom";
-import heroBgUnified from "../../../assets/HeroBgUnified.png";
+import heroBgUnified from "../../../assets/ModernTechConsultingHeroScene.png";
 
 const HeroSection: React.FC = () => {
   const featurePills = [
