@@ -19,6 +19,7 @@ import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
 import { useNavigate, useParams } from "react-router-dom";
+import DashboardNavbar from "../component/specifiedComponent/Dashboard/DashboardNavbar";
 import { useInterviewReport, retryReportGeneration, type InterviewReport } from "../services/apiQueries";
 
 const ReportDetailPage: React.FC = () => {
@@ -45,6 +46,33 @@ const ReportDetailPage: React.FC = () => {
     }
   };
 
+  const backToReportsBtn = (
+    <Button
+      onClick={() => navigate("/reports")}
+      startIcon={<ArrowBackIcon sx={{ fontSize: "18px" }} />}
+      sx={{
+        textTransform: "none",
+        color: "#536887",
+        fontFamily: '"Manrope", sans-serif',
+        fontWeight: 700,
+        fontSize: { xs: "13px", sm: "14px" },
+        px: { xs: "12px", sm: "16px" },
+        py: "6px",
+        borderRadius: "10px",
+        border: "1px solid #DCE6F6",
+        backgroundColor: "#FFFFFF",
+        transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+        "&:hover": {
+          backgroundColor: "#EEF5FF",
+          borderColor: "rgba(20, 104, 242, 0.25)",
+          color: "#1468F2",
+        },
+      }}
+    >
+      Back to Reports
+    </Button>
+  );
+
   if (loading) {
     return (
       <Box
@@ -53,9 +81,10 @@ const ReportDetailPage: React.FC = () => {
           backgroundColor: "#f6f8fc",
         }}
       >
+        <DashboardNavbar hideNavLinks rightAction={backToReportsBtn} />
         <Box
           sx={{
-            minHeight: "100vh",
+            minHeight: "calc(100vh - 72px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -74,21 +103,10 @@ const ReportDetailPage: React.FC = () => {
         sx={{
           minHeight: "100vh",
           backgroundColor: "#f6f8fc",
-          px: { xs: 2, md: 8 },
-          py: 5,
         }}
       >
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate("/dashboard")}
-          sx={{
-            textTransform: "none",
-            color: "#536887",
-            mb: 2,
-          }}
-        >
-          Back to Dashboard
-        </Button>
+        <DashboardNavbar hideNavLinks rightAction={backToReportsBtn} />
+        <Box sx={{ px: { xs: 2, md: 8 }, py: 5 }}>
 
         <Box
           sx={{
@@ -135,6 +153,7 @@ const ReportDetailPage: React.FC = () => {
             Back to Dashboard
           </Button>
         </Box>
+        </Box>
       </Box>
     );
   }
@@ -146,21 +165,10 @@ const ReportDetailPage: React.FC = () => {
         sx={{
           minHeight: "100vh",
           backgroundColor: "#f6f8fc",
-          px: { xs: 2, md: 8 },
-          py: 5,
         }}
       >
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate("/dashboard")}
-          sx={{
-            textTransform: "none",
-            color: "#536887",
-            mb: 2,
-          }}
-        >
-          Back to Dashboard
-        </Button>
+        <DashboardNavbar hideNavLinks rightAction={backToReportsBtn} />
+        <Box sx={{ px: { xs: 2, md: 8 }, py: 5 }}>
 
         <Box
           sx={{
@@ -239,6 +247,7 @@ const ReportDetailPage: React.FC = () => {
           </Button>
         </Box>
       </Box>
+    </Box>
     );
   }
 
@@ -249,22 +258,10 @@ const ReportDetailPage: React.FC = () => {
         sx={{
           minHeight: "100vh",
           backgroundColor: "#f6f8fc",
-          px: { xs: 2, md: 8 },
-          py: 5,
         }}
       >
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate("/dashboard")}
-          sx={{
-            textTransform: "none",
-            color: "#536887",
-            mb: 2,
-          }}
-        >
-          Back to Dashboard
-        </Button>
-
+        <DashboardNavbar hideNavLinks rightAction={backToReportsBtn} />
+        <Box sx={{ px: { xs: 2, md: 8 }, py: 5 }}>
         <Box
           sx={{
             mt: 2,
@@ -343,6 +340,7 @@ const ReportDetailPage: React.FC = () => {
           </Box>
         </Box>
       </Box>
+    </Box>
     );
   }
 
@@ -352,48 +350,38 @@ const ReportDetailPage: React.FC = () => {
         sx={{
           minHeight: "100vh",
           backgroundColor: "#f6f8fc",
-          px: { xs: 2, md: 8 },
-          py: 5,
         }}
       >
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate("/reports")}
-          sx={{
-            textTransform: "none",
-            color: "#536887",
-          }}
-        >
-          Back to Reports
-        </Button>
-
-        <Box
-          sx={{
-            mt: 3,
-            backgroundColor: "#fff",
-            border: "1px solid #f0d2d2",
-            borderRadius: 3,
-            p: 4,
-          }}
-        >
-          <Typography
+        <DashboardNavbar hideNavLinks rightAction={backToReportsBtn} />
+        <Box sx={{ px: { xs: 2, md: 8 }, py: 5 }}>
+          <Box
             sx={{
-              fontSize: 22,
-              fontWeight: 800,
-              color: "#172b4d",
+              mt: 3,
+              backgroundColor: "#fff",
+              border: "1px solid #f0d2d2",
+              borderRadius: 3,
+              p: 4,
             }}
           >
-            Unable to load report
-          </Typography>
+            <Typography
+              sx={{
+                fontSize: 22,
+                fontWeight: 800,
+                color: "#172b4d",
+              }}
+            >
+              Unable to load report
+            </Typography>
 
-          <Typography
-            sx={{
-              mt: 1,
-              color: "#7185a3",
-            }}
-          >
-            {error || "Report data is unavailable."}
-          </Typography>
+            <Typography
+              sx={{
+                mt: 1,
+                color: "#7185a3",
+              }}
+            >
+              {error || "Report data is unavailable."}
+            </Typography>
+          </Box>
         </Box>
       </Box>
     );
@@ -426,43 +414,10 @@ const ReportDetailPage: React.FC = () => {
       }}
     >
       
-      <Box
-        component="header"
-        sx={{
-          height: 76,
-          px: { xs: 2, md: 8 },
-          backgroundColor: "#fff",
-          borderBottom: "1px solid #e5e9f0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <Typography
-          onClick={() => navigate("/dashboard")}
-          sx={{
-            fontSize: { xs: 21, md: 27 },
-            fontWeight: 800,
-            letterSpacing: "-1px",
-            color: "#172b4d",
-            cursor: "pointer",
-          }}
-        >
-          Interview
-          <span style={{ color: "#1677e8" }}>Ready</span>
-        </Typography>
-
-        <Button
-          onClick={() => navigate("/reports")}
-          startIcon={<ArrowBackIcon />}
-          sx={{
-            textTransform: "none",
-            color: "#536887",
-          }}
-        >
-          Back to Reports
-        </Button>
-      </Box>
+      <DashboardNavbar
+        hideNavLinks
+        rightAction={backToReportsBtn}
+      />
 
       
       <Box

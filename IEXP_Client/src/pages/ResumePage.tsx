@@ -153,7 +153,7 @@ const response = await fetch(
         backgroundColor: "#f6f8fc",
         color: "#172b4d",
         fontFamily: '"Manrope", sans-serif',
-        overflowX: "hidden",
+        overflowX: "clip",
         boxSizing: "border-box",
       }}
     >

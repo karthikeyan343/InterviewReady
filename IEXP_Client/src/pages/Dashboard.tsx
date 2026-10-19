@@ -17,7 +17,7 @@ const Dashboard: React.FC = () => {
         minHeight: "100vh",
         width: "100%",
         maxWidth: "100%",
-        overflowX: "hidden",
+        overflowX: "clip",
         backgroundColor: "#f6f8fc",
         fontFamily: '"Manrope", sans-serif',
       }}
