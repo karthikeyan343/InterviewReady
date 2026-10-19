@@ -73,7 +73,8 @@ const DashboardNavbar: React.FC = () => {
 
   const handleNavigation = (path: string) => {
     setMobileMenuOpen(false);
-    navigate(path);
+    if (location.pathname === path) return;
+    navigate(path, { replace: true });
   };
 
   const handleProfileMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -147,12 +148,18 @@ const DashboardNavbar: React.FC = () => {
       >
         {/* ── LEFT: Logo ── */}
         <Box
-          onClick={() => navigate("/dashboard")}
+          onClick={() => {
+            if (location.pathname !== "/dashboard") {
+              navigate("/dashboard", { replace: true });
+            }
+          }}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
-              navigate("/dashboard");
+              if (location.pathname !== "/dashboard") {
+                navigate("/dashboard", { replace: true });
+              }
             }
           }}
           aria-label="InterviewReady Dashboard Home"

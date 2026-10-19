@@ -125,6 +125,7 @@ const InterviewPage: React.FC = () => {
   const resumeSessionDataRef = useRef<any>(null);
 
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isResumable, setIsResumable] = useState(false);
   const isCheckingSessionRef = useRef(true);
   const isReStatingPendingQuestionRef = useRef(false);
   const [sessionConflictModalOpen, setSessionConflictModalOpen] = useState(false);
@@ -602,7 +603,7 @@ const InterviewPage: React.FC = () => {
     void triggerBackendCompletion();
 
     // Immediately finish interview UI flow and navigate to dashboard
-    navigate("/dashboard");
+    navigate("/dashboard", { replace: true });
   };
 
   const handleLeaveInterview = () => {
@@ -660,7 +661,7 @@ const InterviewPage: React.FC = () => {
 
     void triggerBackendLeave();
 
-    navigate("/dashboard");
+    navigate("/dashboard", { replace: true });
   };
 
   const handleReconnect = async () => {
@@ -1323,7 +1324,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         }
 
         if (response.status === 404) {
-          navigate("/dashboard");
+          navigate("/dashboard", { replace: true });
           return;
         }
 
@@ -1333,7 +1334,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         if (!mounted) return;
 
         if (data.interview?.status === "Completed") {
-          navigate("/dashboard");
+          navigate("/dashboard", { replace: true });
           return;
         }
 
@@ -1341,8 +1342,9 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           data.interview?.status === "In Progress" ||
           data.interview?.status === "Left"
         ) {
-          console.log("[Live Interview] Resuming active interview session:", data);
+          console.log("[Live Interview] Preloading active interview session:", data);
           resumeSessionDataRef.current = data;
+          setIsResumable(true);
 
           const limit = data.stats?.totalQuestions ?? 20;
           totalQuestionsRef.current = limit;
@@ -1367,7 +1369,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           setElapsedSeconds(activeSeconds);
           elapsedSecondsRef.current = activeSeconds;
 
-          void handleStartInterview(true, data);
+          // ReadyScreen will display "Resume Interview" and await user action
         }
       } catch (err) {
         console.warn("[Live Interview] Could not check session state:", err);
@@ -1592,7 +1594,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
 
   const handleEndInterview = () => {
     if (!startedRef.current && !started) {
-      navigate("/dashboard");
+      navigate("/dashboard", { replace: true });
       return;
     }
 
@@ -1624,6 +1626,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         micEnabled={micEnabled}
         mediaError={mediaError}
         error={error}
+        isResume={isResumable || Boolean(resumeSessionDataRef.current)}
         onStart={() => {
           if (isCheckingSessionRef.current) {
             console.log(
@@ -1637,7 +1640,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
             void handleStartInterview(false);
           }
         }}
-        onBack={() => navigate("/dashboard")}
+        onBack={() => navigate("/dashboard", { replace: true })}
       />
     );
   }
@@ -3302,7 +3305,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
           <Button
             onClick={() => {
               setShowHighDemandModal(false);
-              navigate("/dashboard");
+              navigate("/dashboard", { replace: true });
             }}
             variant="contained"
             sx={{
@@ -3327,7 +3330,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
       {/* Concurrent Session Protection Modal */}
       <Dialog
         open={sessionConflictModalOpen}
-        onClose={() => navigate("/dashboard")}
+        onClose={() => navigate("/dashboard", { replace: true })}
         slotProps={{
           paper: {
             sx: {
@@ -3349,7 +3352,7 @@ Begin the interview now with a brief professional introduction and Question 1.`,
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, justifyContent: "flex-end", gap: 1 }}>
           <Button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/dashboard", { replace: true })}
             variant="contained"
             sx={{
               backgroundColor: "#2563eb",

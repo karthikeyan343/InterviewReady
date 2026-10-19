@@ -16,6 +16,7 @@ export interface InterviewReadyScreenProps {
   micEnabled: boolean;
   mediaError: string;
   error: string;
+  isResume?: boolean;
   onStart: () => void;
   onBack: () => void;
 }
@@ -29,6 +30,7 @@ const InterviewReadyScreen: React.FC<InterviewReadyScreenProps> = ({
   micEnabled,
   mediaError,
   error,
+  isResume = false,
   onStart,
   onBack,
 }) => {
@@ -170,7 +172,7 @@ const InterviewReadyScreen: React.FC<InterviewReadyScreenProps> = ({
               lineHeight: 1.2,
             }}
           >
-            Ready to start?
+            {isResume ? "Ready to resume?" : "Ready to start?"}
           </Typography>
 
           <Typography
@@ -181,9 +183,9 @@ const InterviewReadyScreen: React.FC<InterviewReadyScreenProps> = ({
               mb: { xs: "16px", sm: "22px" },
             }}
           >
-            Your interview will be conducted as a live voice conversation with
-            your AI interviewer. Verify your camera and microphone status below
-            before joining.
+            {isResume
+              ? "You are resuming your active interview session. Verify your camera and microphone status below before continuing."
+              : "Your interview will be conducted as a live voice conversation with your AI interviewer. Verify your camera and microphone status below before joining."}
           </Typography>
 
           {/* Media Permission Cards - Side by side on both mobile & desktop */}
@@ -434,10 +436,14 @@ const InterviewReadyScreen: React.FC<InterviewReadyScreenProps> = ({
               }}
             >
               {loading
-                ? "Joining Interview..."
+                ? isResume
+                  ? "Resuming Interview..."
+                  : "Joining Interview..."
                 : isCheckingSession
                   ? "Checking Session..."
-                  : "Join Interview"}
+                  : isResume
+                    ? "Resume Interview"
+                    : "Join Interview"}
             </Button>
 
             <Button

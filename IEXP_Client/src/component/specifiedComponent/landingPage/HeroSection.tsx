@@ -202,7 +202,7 @@ const HeroSection: React.FC = () => {
                 py: { xs: 0.65, sm: 0.7, md: "clamp(5px, 0.7vh, 7px)" },
                 borderRadius: "50px",
                 backgroundColor: "rgba(255, 255, 255, 0.94)",
-                border: "1px solid rgba(20, 104, 242, 0.16)",
+                border: "1px solid rgba(0, 0, 0, 0.16)",
                 backdropFilter: "blur(10px)",
                 WebkitBackdropFilter: "blur(10px)",
                 width: "fit-content",
@@ -230,7 +230,7 @@ const HeroSection: React.FC = () => {
               <Typography
                 component="span"
                 sx={{
-                  color: "#475569",
+                  color: "black",
                   fontFamily: '"Manrope", sans-serif',
                   fontSize: {
                     xs: "10.5px",
