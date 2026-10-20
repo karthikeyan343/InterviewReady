@@ -82,16 +82,50 @@ const Navbar: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const SCROLL_THRESHOLD = 8;
+
     const handleScroll = () => {
       const currentScrollY = Math.max(0, window.scrollY);
 
       // 1. Floating pill styling (after initial 30px)
       setScrolled(currentScrollY > 30);
 
-      // Ensure navbar is always fixed and visible at the top across all sections
-      if (!isVisibleRef.current) {
-        isVisibleRef.current = true;
-        setIsVisible(true);
+      // 2. Measure hero section boundary
+      const heroEl = document.getElementById("home");
+      const heroHeight = heroEl ? heroEl.offsetHeight : window.innerHeight;
+      // Allow user to view the full hero before hide-on-scroll-down activates
+      const heroThreshold = Math.max(100, heroHeight - 80);
+
+      const deltaY = currentScrollY - lastScrollYRef.current;
+
+      // 3. If within or above hero boundary, navbar is always visible
+      if (currentScrollY <= heroThreshold) {
+        if (!isVisibleRef.current) {
+          isVisibleRef.current = true;
+          setIsVisible(true);
+        }
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      // 4. Past hero boundary: ignore tiny trackpad / mousewheel jitters
+      if (Math.abs(deltaY) < SCROLL_THRESHOLD) {
+        return;
+      }
+
+      // 5. Scroll direction handling past the hero
+      if (deltaY > 0) {
+        // Scrolling DOWN past hero -> smoothly hide
+        if (isVisibleRef.current) {
+          isVisibleRef.current = false;
+          setIsVisible(false);
+        }
+      } else {
+        // Scrolling UP anywhere on the page -> smoothly reveal
+        if (!isVisibleRef.current) {
+          isVisibleRef.current = true;
+          setIsVisible(true);
+        }
       }
 
       lastScrollYRef.current = currentScrollY;
