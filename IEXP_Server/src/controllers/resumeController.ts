@@ -126,18 +126,44 @@ export const uploadResume = async (
     const storagePath = `${req.userId}/${Date.now()}-${safeFileName}`;
 
     // ONLY after successful validation: upload original file to Supabase
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(storagePath, file.buffer, {
-        contentType: file.mimetype,
-        upsert: false,
-      });
+    let uploadData: any = null;
+    let uploadError: any = null;
+
+    try {
+      const uploadResult = await supabase.storage
+        .from(BUCKET_NAME)
+        .upload(storagePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+      uploadData = uploadResult.data;
+      uploadError = uploadResult.error;
+    } catch (networkErr: any) {
+      uploadError = networkErr;
+    }
 
     if (uploadError) {
       console.error("Supabase upload error:", uploadError);
 
+      const errString = `${uploadError?.message || ""} ${uploadError?.name || ""} ${uploadError?.stack || ""} ${JSON.stringify(uploadError || "")}`;
+      const isConnectionIssue =
+        errString.includes("ENOTFOUND") ||
+        errString.includes("fetch failed") ||
+        errString.includes("ECONNREFUSED") ||
+        errString.includes("ETIMEDOUT") ||
+        errString.includes("NetworkError");
+
+      if (isConnectionIssue) {
+        res.status(503).json({
+          message:
+            "Resume storage service is currently unreachable (Supabase project may be paused or offline). Please restore the storage project in the Supabase dashboard or check your credentials.",
+        });
+        return;
+      }
+
       res.status(500).json({
-        message: "Failed to upload resume",
+        message:
+          uploadError?.message || "Failed to upload resume",
       });
       return;
     }
@@ -290,18 +316,57 @@ export const viewMyResume = async (
       return;
     }
 
-    const { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .createSignedUrl(resume.storagePath, 300);
+    let data: { signedUrl: string } | null = null;
+    let storageError: any = null;
 
-    if (error || !data?.signedUrl) {
+    try {
+      const result = await supabase.storage
+        .from(BUCKET_NAME)
+        .createSignedUrl(resume.storagePath, 300);
+      data = result.data;
+      storageError = result.error;
+    } catch (networkErr: any) {
+      storageError = networkErr;
+    }
+
+    if (storageError || !data?.signedUrl) {
       console.error(
         "Supabase signed URL error:",
-        error
+        storageError
       );
 
+      const errString = `${storageError?.message || ""} ${storageError?.name || ""} ${storageError?.stack || ""} ${JSON.stringify(storageError || "")}`;
+      const isConnectionIssue =
+        errString.includes("ENOTFOUND") ||
+        errString.includes("fetch failed") ||
+        errString.includes("ECONNREFUSED") ||
+        errString.includes("ETIMEDOUT") ||
+        errString.includes("NetworkError");
+
+      const isNotFound =
+        storageError?.statusCode === 404 ||
+        storageError?.statusCode === "404" ||
+        errString.toLowerCase().includes("not found");
+
+      if (isConnectionIssue) {
+        res.status(503).json({
+          message:
+            "Resume storage service is currently unreachable (Supabase project may be paused or offline). Please restore the storage project in the Supabase dashboard or re-upload your resume.",
+        });
+        return;
+      }
+
+      if (isNotFound) {
+        res.status(404).json({
+          message:
+            "Resume file was not found in storage. Please re-upload your resume.",
+        });
+        return;
+      }
+
       res.status(500).json({
-        message: "Failed to generate resume URL",
+        message:
+          storageError?.message || "Failed to generate resume URL",
       });
       return;
     }
