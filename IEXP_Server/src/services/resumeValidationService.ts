@@ -122,7 +122,7 @@ export const validateResumeTextDeterministic = (
  * Evaluates whether the document is a genuine candidate resume/CV.
  * Rejects ads, brochures, certificates, invoices, notices, assignments, etc.
  */
-export const validateResumeTextSemantic = async (
+const validateResumeTextSemantic = async (
   extractedText: string
 ): Promise<ResumeValidationResult> => {
   const apiKey = process.env.OPENROUTER_RESUME_VALIDATION_API_KEY;

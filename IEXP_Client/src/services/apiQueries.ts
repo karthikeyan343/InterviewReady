@@ -13,7 +13,7 @@ const getAuthHeaders = (): Record<string, string> => {
   };
 };
 
-export const handleAuthError = (status: number) => {
+const handleAuthError = (status: number) => {
   if (status === 401) {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -130,14 +130,6 @@ export interface InterviewReport {
   updatedAt: string;
 }
 
-export interface ReportStatusResponse {
-  status: "NotRequired" | "Processing" | "Completed" | "Failed";
-  reportId?: string;
-  overallScore?: number;
-  error?: string;
-  errorMessage?: string;
-}
-
 // ----------------------------------------------------
 // Query Hooks
 // ----------------------------------------------------
@@ -243,33 +235,6 @@ export const useInterviewReport = (interviewId?: string) => {
     refetchInterval: (query) => {
       const status = query.state.data?.report?.status;
       return status === "preparing" || status === "Processing" ? 3500 : false;
-    },
-  });
-};
-
-export const useInterviewReportStatus = (interviewId?: string) => {
-  return useQuery<ReportStatusResponse>({
-    queryKey: ["reportStatus", interviewId],
-    queryFn: async () => {
-      if (!interviewId) throw new Error("Interview ID is required");
-      const response = await fetch(
-        `${getApiBaseUrl()}/interviews/${interviewId}/report-status`,
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
-      );
-      if (!response.ok) {
-        handleAuthError(response.status);
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || "Failed to fetch report status.");
-      }
-      return response.json();
-    },
-    enabled: !!interviewId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "Processing" ? 3500 : false;
     },
   });
 };

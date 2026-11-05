@@ -36,7 +36,7 @@ const MAX_TOTAL_CONTEXT_LENGTH = 2800;
  * Strips emails, phone numbers, website/portfolio links, physical addresses,
  * and leftover separator tokens from a single line of text.
  */
-export function sanitizeResumeLine(rawLine: string): string {
+function sanitizeResumeLine(rawLine: string): string {
   if (!rawLine) return "";
 
   let cleaned = rawLine

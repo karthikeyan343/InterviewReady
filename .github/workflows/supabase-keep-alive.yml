@@ -1,0 +1,39 @@
+name: Supabase Keep-Alive Heartbeat
+
+on:
+  schedule:
+    # Runs every 3 days at 00:00 UTC (Supabase pauses after 7 days of inactivity)
+    - cron: '0 0 */3 * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  keep-alive:
+    name: Ping Supabase Services
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Storage & API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "❌ Error: SUPABASE_URL or SUPABASE_SECRET_KEY/SUPABASE_ANON_KEY secret is not set in GitHub repository settings."
+            echo "Please add SUPABASE_URL and SUPABASE_SECRET_KEY under Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+          echo "Pinging Supabase Storage service..."
+          RESPONSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            "$SUPABASE_URL/storage/v1/bucket")
+
+          echo "Supabase Storage responded with HTTP status: $RESPONSE_CODE"
+
+          if [ "$RESPONSE_CODE" -ge 200 ] && [ "$RESPONSE_CODE" -lt 500 ]; then
+            echo "✅ Supabase project is active and healthy."
+          else
+            echo "⚠️ Warning: Supabase responded with status $RESPONSE_CODE. The project may be paused or starting up."
+            exit 1
+          fi
+

@@ -14,6 +14,7 @@ import interviewReportRoutes from "./routes/interviewReportRoutes.js";
 import liveInterviewRoutes from "./routes/liveInterviewRoutes.js";
 
 import connectDB from "./config/database.js";
+import { initSupabaseKeepAlive, pingSupabase } from "./services/supabaseKeepAlive.js";
 
 const app: Express = express();
 
@@ -81,16 +82,23 @@ app.get("/", (req: Request, res: Response) => {
   });
 });
 
-app.get("/api/health", (_req: Request, res: Response) => {
+app.get("/api/health", async (_req: Request, res: Response) => {
+  const supabaseActive = await pingSupabase();
   res.status(200).json({
     status: "ok",
     message: "InterviewReady server is ready",
+    services: {
+      supabase: supabaseActive ? "connected" : "unreachable",
+    },
   });
 });
 
 const startServer = async (): Promise<void> => {
   try {
     await connectDB();
+
+    // Start background keep-alive heartbeat to prevent Supabase from pausing
+    initSupabaseKeepAlive();
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);

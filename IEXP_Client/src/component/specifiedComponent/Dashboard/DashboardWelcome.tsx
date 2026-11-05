@@ -19,33 +19,34 @@ interface NewInterviewData {
     | "Hard";
 }
 
+const getGreeting = (): string => {
+  const currentHour = new Date().getHours();
+  if (currentHour < 12) {
+    return "Good morning";
+  }
+  if (currentHour < 17) {
+    return "Good afternoon";
+  }
+  return "Good evening";
+};
+
 const DashboardWelcome: React.FC = () => {
-  const [openModal, setOpenModal] =
-    useState(false);
+  const [openModal, setOpenModal] = useState(false);
 
   const navigate = useNavigate();
 
-  const storedUser =
-    localStorage.getItem("user");
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const userName = user?.name || "there";
 
-  const user = storedUser
-    ? JSON.parse(storedUser)
-    : null;
+  const greeting = getGreeting();
 
-  const userName =
-    user?.name || "there";
-
-  const handleCreateInterview = async (
-    data: NewInterviewData
-  ) => {
+  const handleCreateInterview = async (data: NewInterviewData) => {
     try {
-      const token =
-        localStorage.getItem("token");
+      const token = localStorage.getItem("token");
 
       if (!token) {
-        console.error(
-          "Authentication token not found"
-        );
+        console.error("Authentication token not found");
         return;
       }
 
@@ -64,28 +65,18 @@ const DashboardWelcome: React.FC = () => {
       const result = await response.json();
 
       if (!response.ok) {
-        console.error(
-          "Create interview error:",
-          result.message
-        );
+        console.error("Create interview error:", result.message);
         throw new Error(
           result.message || "Failed to create interview. Please try again."
         );
       }
 
-      console.log(
-        "Interview created:",
-        result
-      );
+      console.log("Interview created:", result);
 
-      const interviewId =
-        result.interview?.id;
+      const interviewId = result.interview?.id;
 
       if (!interviewId) {
-        console.error(
-          "Interview ID not found:",
-          result
-        );
+        console.error("Interview ID not found:", result);
         throw new Error("Interview ID not returned by server.");
       }
 
@@ -94,14 +85,9 @@ const DashboardWelcome: React.FC = () => {
 
       setOpenModal(false);
 
-      navigate(
-        `/interviews/${interviewId}`
-      );
+      navigate(`/interviews/${interviewId}`);
     } catch (error) {
-      console.error(
-        "Create interview error:",
-        error
-      );
+      console.error("Create interview error:", error);
       throw error;
     }
   };
@@ -135,7 +121,7 @@ const DashboardWelcome: React.FC = () => {
               letterSpacing: "-0.5px",
             }}
           >
-            Good morning, {userName}
+            {greeting}, {userName}
           </Typography>
 
           <Typography
@@ -153,17 +139,14 @@ const DashboardWelcome: React.FC = () => {
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() =>
-            setOpenModal(true)
-          }
+          onClick={() => setOpenModal(true)}
           sx={{
             minWidth: "150px",
             height: "44px",
             px: "18px",
             borderRadius: "10px",
             textTransform: "none",
-            fontFamily:
-              '"Manrope", sans-serif',
+            fontFamily: '"Manrope", sans-serif',
             fontSize: "13px",
             fontWeight: 700,
             boxShadow: "none",
@@ -178,12 +161,8 @@ const DashboardWelcome: React.FC = () => {
 
       <NewInterviewModal
         open={openModal}
-        onClose={() =>
-          setOpenModal(false)
-        }
-        onCreate={
-          handleCreateInterview
-        }
+        onClose={() => setOpenModal(false)}
+        onCreate={handleCreateInterview}
       />
     </>
   );

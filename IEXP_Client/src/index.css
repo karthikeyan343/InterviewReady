@@ -4,6 +4,9 @@ html {
   scroll-behavior: smooth;
   scroll-padding-top: 82px;
   scrollbar-width: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 html::-webkit-scrollbar {
@@ -17,14 +20,21 @@ body {
   font-weight: 500;
   background-color: #ffffff;
   scrollbar-width: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body::-webkit-scrollbar {
   display: none;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 button,

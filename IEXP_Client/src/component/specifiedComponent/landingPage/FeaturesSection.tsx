@@ -4,7 +4,6 @@ import ChatOutlinedIcon from "@mui/icons-material/ChatOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import BarChartOutlinedIcon from "@mui/icons-material/BarChartOutlined";
 import TrackChangesOutlinedIcon from "@mui/icons-material/TrackChangesOutlined";
-// import featuresBackground from "../../../assets/HeroBgIR1.png";
 
 const features = [
   {
