@@ -11,6 +11,7 @@ import { ReportFailedState } from "./components/ReportFailedState";
 import { ReportErrorState } from "./components/ReportErrorState";
 import { ReportHeaderCard } from "./components/ReportHeaderCard";
 import { ReportFeedbackCards } from "./components/ReportFeedbackCards";
+import { InterviewTranscriptSection } from "./components/InterviewTranscriptSection";
 
 export const ReportDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -137,6 +138,7 @@ export const ReportDetailPage: React.FC = () => {
       >
         <ReportHeaderCard report={report} />
         <ReportFeedbackCards report={report} />
+        {id && <InterviewTranscriptSection interviewId={id} report={report} />}
       </Box>
     </Box>
   );

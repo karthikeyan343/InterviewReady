@@ -6,6 +6,7 @@ import {
   getInterviewReport,
   getInterviewReportStatusController,
   retryInterviewReportGenerationController,
+  getInterviewTranscriptController,
 } from "../controllers/interviewReportController.js";
 
 const router = Router();
@@ -14,6 +15,12 @@ router.get(
   "/:id/report",
   protect,
   getInterviewReport
+);
+
+router.get(
+  "/:id/transcript",
+  protect,
+  getInterviewTranscriptController
 );
 
 router.get(

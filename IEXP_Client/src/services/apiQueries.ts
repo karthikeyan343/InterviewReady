@@ -130,6 +130,22 @@ export interface InterviewReport {
   updatedAt: string;
 }
 
+export interface ConversationTurn {
+  id: string;
+  sequence: number;
+  speaker: "interviewer" | "candidate";
+  text: string;
+  isQuestion: boolean;
+  timestamp: string;
+}
+
+export interface InterviewTranscriptResponse {
+  message: string;
+  interviewId: string;
+  totalTurns: number;
+  conversation: ConversationTurn[];
+}
+
 // ----------------------------------------------------
 // Query Hooks
 // ----------------------------------------------------
@@ -239,6 +255,30 @@ export const useInterviewReport = (interviewId?: string) => {
   });
 };
 
+export const useInterviewTranscript = (interviewId?: string, enabled = true) => {
+  return useQuery<InterviewTranscriptResponse>({
+    queryKey: ["interviewTranscript", interviewId],
+    queryFn: async () => {
+      if (!interviewId) throw new Error("Interview ID is required");
+      const response = await fetch(
+        `${getApiBaseUrl()}/interviews/${interviewId}/transcript`,
+        {
+          method: "GET",
+          headers: getAuthHeaders(),
+        }
+      );
+      if (!response.ok) {
+        handleAuthError(response.status);
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to fetch interview transcript.");
+      }
+      return response.json();
+    },
+    enabled: Boolean(interviewId && enabled),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
 export const retryReportGeneration = async (interviewId: string): Promise<void> => {
   const response = await fetch(
     `${getApiBaseUrl()}/interviews/${interviewId}/report/retry`,
@@ -279,9 +319,11 @@ export const invalidateReports = (interviewId?: string) => {
   if (interviewId) {
     void queryClient.invalidateQueries({ queryKey: ["report", interviewId] });
     void queryClient.invalidateQueries({ queryKey: ["reportStatus", interviewId] });
+    void queryClient.invalidateQueries({ queryKey: ["interviewTranscript", interviewId] });
   } else {
     void queryClient.invalidateQueries({ queryKey: ["report"] });
     void queryClient.invalidateQueries({ queryKey: ["reportStatus"] });
+    void queryClient.invalidateQueries({ queryKey: ["interviewTranscript"] });
   }
   void queryClient.invalidateQueries({ queryKey: ["interviews"] });
   void queryClient.invalidateQueries({ queryKey: ["dashboard"] });

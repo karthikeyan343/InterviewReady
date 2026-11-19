@@ -5,6 +5,7 @@ import { AuthRequest } from "../middleware/authMiddleware.js";
 
 import Interview from "../models/Interview.js";
 import InterviewReport from "../models/InterviewReport.js";
+import LiveInterviewTurn from "../models/LiveInterviewTurn.js";
 import {
   getInterviewReportStatus,
   retryInterviewReportGeneration,
@@ -172,6 +173,71 @@ export const retryInterviewReportGenerationController = async (
       error instanceof Error ? error.message : "Failed to retry report generation.";
     res.status(400).json({
       message,
+    });
+  }
+};
+
+export const getInterviewTranscriptController = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.userId) {
+      res.status(401).json({
+        message: "Authentication required",
+      });
+      return;
+    }
+
+    const rawId = req.params.id;
+    const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      res.status(400).json({
+        message: "Invalid interview ID",
+      });
+      return;
+    }
+
+    const interviewObjectId = new mongoose.Types.ObjectId(id);
+
+    const interview = await Interview.findOne({
+      _id: interviewObjectId,
+      userId: req.userId,
+    });
+
+    if (!interview) {
+      res.status(404).json({
+        message: "Interview not found",
+      });
+      return;
+    }
+
+    const turns = await LiveInterviewTurn.find({
+      interviewId: interviewObjectId,
+    })
+      .sort({ sequence: 1 })
+      .select("sequence speaker text isQuestion timestamp");
+
+    const conversation = turns.map((turn) => ({
+      id: turn._id,
+      sequence: turn.sequence,
+      speaker: turn.speaker,
+      text: turn.text,
+      isQuestion: turn.isQuestion,
+      timestamp: turn.timestamp,
+    }));
+
+    res.status(200).json({
+      message: "Interview transcript fetched successfully",
+      interviewId: id,
+      totalTurns: conversation.length,
+      conversation,
+    });
+  } catch (error) {
+    console.error("Get interview transcript error:", error);
+    res.status(500).json({
+      message: "Server error while fetching interview transcript",
     });
   }
 };
